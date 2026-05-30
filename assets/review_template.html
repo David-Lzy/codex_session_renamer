@@ -121,6 +121,44 @@
       border-radius: 8px;
       background: var(--panel);
     }
+    .config-panel {
+      display: grid;
+      gap: 12px;
+      margin: 0 0 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .config-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .remote-host-list {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .remote-host-option {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      min-height: 34px;
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--chip);
+    }
+    .remote-host-option span {
+      font-size: 13px;
+    }
+    .remote-host-manual {
+      flex: 1 1 260px;
+      min-width: min(100%, 220px);
+    }
     .tool-drawer {
       margin: 0 0 12px;
       border: 1px solid var(--line);
@@ -386,6 +424,68 @@
       <button id="submitApprovals" class="primary">提交审核结果 / Submit approvals</button>
       <button id="checkDesktopStatus">检查桌面应用状态 / Check Desktop status</button>
     </div>
+    <section class="config-panel" aria-label="AI and remote session configuration">
+      <div class="config-row">
+        <span class="group-title" id="modelToolsLabel">模型 / Model</span>
+        <label class="model-field compact">
+          <span id="modelBackendLabel">Backend</span>
+          <select id="modelBackend">
+            <option value="openai">OpenAI API</option>
+            <option value="codex">Codex subagent</option>
+          </select>
+        </label>
+        <label class="model-field">
+          <span id="openaiBaseUrlLabel">OpenAI Base URL</span>
+          <input id="openaiBaseUrl" type="text" autocomplete="off">
+        </label>
+        <label class="model-field compact">
+          <span id="openaiModelLabel">OpenAI Model</span>
+          <input id="openaiModel" type="text" autocomplete="off">
+        </label>
+        <label class="model-field compact">
+          <span id="openaiApiKeyLabel">API Key</span>
+          <input id="openaiApiKey" type="password" autocomplete="off">
+        </label>
+        <label class="model-field codex-model-field">
+          <span id="codexModelLabel">Codex Model</span>
+          <select id="codexModel">
+            <option value="gpt-5.3-codex-spark">gpt-5.3-codex-spark</option>
+            <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+            <option value="gpt-5.3-codex">gpt-5.3-codex</option>
+            <option value="gpt-5.4">gpt-5.4</option>
+            <option value="gpt-5.5">gpt-5.5</option>
+            <option value="__custom__">Custom...</option>
+          </select>
+        </label>
+        <label class="model-field custom-model-field is-hidden" id="codexModelCustomWrap">
+          <span id="codexModelCustomLabel">Custom Codex model</span>
+          <input id="codexModelCustom" type="text" autocomplete="off">
+        </label>
+        <label class="model-field codex-model-field">
+          <span id="codexFallbackModelLabel">Codex Fallback</span>
+          <select id="codexFallbackModel">
+            <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+            <option value="gpt-5.3-codex-spark">gpt-5.3-codex-spark</option>
+            <option value="gpt-5.3-codex">gpt-5.3-codex</option>
+            <option value="gpt-5.4">gpt-5.4</option>
+            <option value="gpt-5.5">gpt-5.5</option>
+            <option value="__custom__">Custom...</option>
+          </select>
+        </label>
+        <label class="model-field custom-model-field is-hidden" id="codexFallbackCustomWrap">
+          <span id="codexFallbackCustomLabel">Custom fallback</span>
+          <input id="codexFallbackCustom" type="text" autocomplete="off">
+        </label>
+      </div>
+      <div class="config-row">
+        <span class="group-title" id="remoteSessionsLabel">远程会话 / Remote</span>
+        <div id="remoteHostList" class="remote-host-list"></div>
+        <label class="model-field remote-host-manual">
+          <span id="remoteManualLabel">其他 SSH Host</span>
+          <input id="remoteManualHosts" type="text" autocomplete="off">
+        </label>
+      </div>
+    </section>
     <details class="tool-drawer">
       <summary id="advancedToolsSummary">高级工具 / Advanced tools</summary>
       <div class="tool-drawer-body">
@@ -399,58 +499,6 @@
           <span class="group-title" id="aiToolsLabel">AI 重写</span>
           <button id="requestSubagent">请求子agent重生成已勾选 / Request subagent</button>
           <button id="checkSubagentStatus">检查子agent结果 / Check subagent</button>
-        </div>
-        <div class="tool-group">
-          <span class="group-title" id="modelToolsLabel">模型</span>
-          <label class="model-field compact">
-            <span id="modelBackendLabel">Backend</span>
-            <select id="modelBackend">
-              <option value="openai">OpenAI API</option>
-              <option value="codex">Codex subagent</option>
-            </select>
-          </label>
-          <label class="model-field">
-            <span id="openaiBaseUrlLabel">OpenAI Base URL</span>
-            <input id="openaiBaseUrl" type="text" autocomplete="off">
-          </label>
-          <label class="model-field compact">
-            <span id="openaiModelLabel">OpenAI Model</span>
-            <input id="openaiModel" type="text" autocomplete="off">
-          </label>
-          <label class="model-field compact">
-            <span id="openaiApiKeyLabel">API Key</span>
-            <input id="openaiApiKey" type="password" autocomplete="off">
-          </label>
-          <label class="model-field codex-model-field">
-            <span id="codexModelLabel">Codex Model</span>
-            <select id="codexModel">
-              <option value="gpt-5.3-codex-spark">gpt-5.3-codex-spark</option>
-              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
-              <option value="gpt-5.3-codex">gpt-5.3-codex</option>
-              <option value="gpt-5.4">gpt-5.4</option>
-              <option value="gpt-5.5">gpt-5.5</option>
-              <option value="__custom__">Custom...</option>
-            </select>
-          </label>
-          <label class="model-field custom-model-field is-hidden" id="codexModelCustomWrap">
-            <span id="codexModelCustomLabel">Custom Codex model</span>
-            <input id="codexModelCustom" type="text" autocomplete="off">
-          </label>
-          <label class="model-field codex-model-field">
-            <span id="codexFallbackModelLabel">Codex Fallback</span>
-            <select id="codexFallbackModel">
-              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
-              <option value="gpt-5.3-codex-spark">gpt-5.3-codex-spark</option>
-              <option value="gpt-5.3-codex">gpt-5.3-codex</option>
-              <option value="gpt-5.4">gpt-5.4</option>
-              <option value="gpt-5.5">gpt-5.5</option>
-              <option value="__custom__">Custom...</option>
-            </select>
-          </label>
-          <label class="model-field custom-model-field is-hidden" id="codexFallbackCustomWrap">
-            <span id="codexFallbackCustomLabel">Custom fallback</span>
-            <input id="codexFallbackCustom" type="text" autocomplete="off">
-          </label>
         </div>
         <div class="tool-group">
           <span class="group-title" id="fallbackToolsLabel">Fallback</span>
@@ -494,6 +542,7 @@
     const payload = JSON.parse(document.getElementById("session-renamer-data").textContent);
     const run = payload.proposal_run || {};
     const serverMode = location.protocol === "http:" || location.protocol === "https:";
+    const remoteHostCandidates = Array.isArray(payload.remote_host_candidates) ? payload.remote_host_candidates : [];
     const proposals = (run.proposals || []).map((item) => {
       return {
         ...item,
@@ -516,6 +565,10 @@
       openai_api_key: "",
       codex_model: localStorage.getItem("sessionRenamer.codexModel") || "gpt-5.3-codex-spark",
       codex_fallback_model: localStorage.getItem("sessionRenamer.codexFallbackModel") || "gpt-5.4-mini"
+    };
+    const remoteConfig = {
+      selected: new Set((localStorage.getItem("sessionRenamer.remoteHosts") || "").split(",").map((item) => item.trim()).filter(Boolean)),
+      manual: localStorage.getItem("sessionRenamer.remoteManualHosts") || ""
     };
     const codexModelChoices = ["gpt-5.3-codex-spark", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.4", "gpt-5.5"];
     const i18n = {
@@ -544,6 +597,10 @@
         exportTools: "导出",
         aiTools: "AI 重写",
         modelTools: "模型",
+        remoteSessions: "远程会话",
+        remoteManualHosts: "其他 SSH Host",
+        remoteManualPlaceholder: "用逗号分隔，例如 server3, mac-mini",
+        remoteNoHosts: "未在 ~/.ssh/config 发现远程 Host，可手动输入。",
         modelBackend: "后端类型",
         openaiBaseUrl: "OpenAI Base URL",
         openaiModel: "OpenAI 模型",
@@ -552,7 +609,7 @@
         codexFallbackModel: "Codex 备用",
         customCodexModel: "自定义 Codex 模型",
         customCodexFallback: "自定义备用模型",
-        openaiBaseUrlPlaceholder: "http://host:port/v1",
+        openaiBaseUrlPlaceholder: "host:port 或 http://host:port/v1",
         openaiModelPlaceholder: "留空则自动读取 /v1/models",
         openaiApiKeyPlaceholder: "可选；只在本页临时使用",
         customCodexModelPlaceholder: "例如 gpt-5.6-codex",
@@ -583,8 +640,13 @@
         yes: "有",
         none: "无",
         noticeDefault: "主流程：审核标题，批准需要改的项，然后提交。提交后回到对话让我执行。",
+        firstRunNotice: "先在上方配置 OpenAI/vLLM 或 Codex 子agent，并勾选需要纳入的远程会话，然后点击“开始审核”。这一步还不会改名。",
+        firstRunEmpty: "等待配置后开始审核。",
         startingReview: "正在创建新一轮审核请求...",
         startReviewPrepared: "已创建开始审核请求。复制下面提示词给 Codex，我会拉取当前会话并生成新的审核页。",
+        startReviewRunning: "正在根据当前配置生成审核页...",
+        startReviewDone: "审核页已生成，正在刷新页面。",
+        startReviewNeedsSubagent: "已生成 Codex 子agent 请求。复制下面提示词给 Codex 继续。",
         startReviewFailed: "创建开始审核请求失败：{message}",
         summary: "已批准 {approved} 项；有变化 {changed} 项；无效 {invalid} 项。单条重生成使用本地 vLLM。",
         summaryApply: "执行状态：已应用 {applied}，跳过 {skipped}，失败 {failed}。",
@@ -608,7 +670,7 @@
         resetPrompt: "初始化默认",
         copyPrompt: "复制",
         copiedPrompt: "已复制",
-        copyPromptFailed: "复制失败，请手动选择文本。",
+        copyPromptFailed: "浏览器拒绝自动复制；已选中文本，请按 Ctrl+C。",
         promptReset: "已按当前语言初始化提示词。",
         advanced: "高级选项、上下文与单条重生成",
         length: "长度",
@@ -633,7 +695,7 @@
         regenNotice: "已重新生成并并入标准题词，请确认后批准。",
         regenFailed: "无法调用本地服务：{message}",
         editedNotice: "题词已编辑，批准状态未自动改变。",
-        fileModeSubmit: "当前是 file 页面，请使用本地服务 http://127.0.0.1:8765/ 提交。",
+        fileModeSubmit: "当前是 file 页面，请先通过已启动的本地服务页面提交。",
         submitting: "正在提交审核结果...",
         submitSaved: "已写入 approved.json、apply_plan.json 和 desktop_apply_request.json：可应用 {apply} 条，跳过 {skip} 条。下一步需要 Codex Desktop 工具执行。",
         submitFailed: "提交失败：{message}",
@@ -692,6 +754,10 @@
         exportTools: "Export",
         aiTools: "AI rewrite",
         modelTools: "Models",
+        remoteSessions: "Remote sessions",
+        remoteManualHosts: "Other SSH hosts",
+        remoteManualPlaceholder: "Comma-separated, e.g. server3, mac-mini",
+        remoteNoHosts: "No SSH hosts found in ~/.ssh/config; enter hosts manually.",
         modelBackend: "Backend",
         openaiBaseUrl: "OpenAI Base URL",
         openaiModel: "OpenAI model",
@@ -700,7 +766,7 @@
         codexFallbackModel: "Codex fallback",
         customCodexModel: "Custom Codex model",
         customCodexFallback: "Custom fallback",
-        openaiBaseUrlPlaceholder: "http://host:port/v1",
+        openaiBaseUrlPlaceholder: "host:port or http://host:port/v1",
         openaiModelPlaceholder: "Blank uses /v1/models",
         openaiApiKeyPlaceholder: "Optional; temporary on this page",
         customCodexModelPlaceholder: "For example gpt-5.6-codex",
@@ -731,8 +797,13 @@
         yes: "yes",
         none: "none",
         noticeDefault: "Main flow: review titles, approve the ones to change, then submit. After submitting, return to chat and ask me to execute.",
+        firstRunNotice: "Configure OpenAI/vLLM or Codex subagent above, select any remote sessions to include, then click Start review. This does not rename anything.",
+        firstRunEmpty: "Waiting for backend configuration and Start review.",
         startingReview: "Preparing a fresh review request...",
         startReviewPrepared: "Prepared a fresh review request. Copy the prompt below to Codex so I can collect current threads and generate a new review page.",
+        startReviewRunning: "Generating the review page with the current backend settings...",
+        startReviewDone: "Review page generated. Refreshing.",
+        startReviewNeedsSubagent: "Codex subagent request is ready. Copy the prompt below back to Codex.",
         startReviewFailed: "Failed to prepare start-review request: {message}",
         summary: "{approved} approved; {changed} changed; {invalid} invalid. Per-item regeneration uses local vLLM.",
         summaryApply: "Apply status: {applied} applied, {skipped} skipped, {failed} failed.",
@@ -756,7 +827,7 @@
         resetPrompt: "Reset default",
         copyPrompt: "Copy",
         copiedPrompt: "Copied",
-        copyPromptFailed: "Copy failed; select the text manually.",
+        copyPromptFailed: "The browser blocked automatic copy; text is selected, press Ctrl+C.",
         promptReset: "Prompt reset to the current language template.",
         advanced: "Advanced options, context, per-item regenerate",
         length: "Length",
@@ -781,7 +852,7 @@
         regenNotice: "Regenerated and merged; approve after review.",
         regenFailed: "Local service unavailable: {message}",
         editedNotice: "Title edited; approval state was not changed automatically.",
-        fileModeSubmit: "This is a file page. Use http://127.0.0.1:8765/ to submit.",
+        fileModeSubmit: "This is a file page. Submit from the running local review server page.",
         submitting: "Submitting approvals...",
         submitSaved: "Saved approved.json, apply_plan.json, and desktop_apply_request.json: {apply} apply, {skip} skipped. Next step requires Codex Desktop tool execution.",
         submitFailed: "Submit failed: {message}",
@@ -818,7 +889,7 @@
     };
     let currentLang = localStorage.getItem("sessionRenamer.lang") || "zh";
     let currentTheme = localStorage.getItem("sessionRenamer.theme") || "dark";
-    let notice = { key: "noticeDefault", vars: {} };
+    let notice = { key: run.backend_used === "waiting_for_start" ? "firstRunNotice" : "noticeDefault", vars: {} };
 
     function t(key, vars = {}) {
       let text = (i18n[currentLang] && i18n[currentLang][key]) || i18n.en[key] || key;
@@ -883,10 +954,36 @@
       document.getElementById("requestSubagent").disabled = codexDisabled;
     }
 
+    function normalizeOpenAIBaseUrl(value) {
+      let text = String(value || "").trim() || "http://127.0.0.1:8000/v1";
+      if (!/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(text)) {
+        text = `http://${text}`;
+      }
+      try {
+        const url = new URL(text);
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length >= 2 && parts[parts.length - 2] === "chat" && parts[parts.length - 1] === "completions") {
+          parts.splice(parts.length - 2, 2);
+        }
+        while (parts.length && ["models", "completions"].includes(parts[parts.length - 1])) {
+          parts.pop();
+        }
+        if (!parts.length || parts[parts.length - 1] !== "v1") {
+          parts.push("v1");
+        }
+        url.pathname = `/${parts.join("/")}`;
+        url.search = "";
+        url.hash = "";
+        return url.toString().replace(/\/$/, "");
+      } catch (_) {
+        return text;
+      }
+    }
+
     function modelConfigData() {
       return {
         backend: document.getElementById("modelBackend").value || "openai",
-        openai_base_url: document.getElementById("openaiBaseUrl").value.trim() || "http://127.0.0.1:8000/v1",
+        openai_base_url: normalizeOpenAIBaseUrl(document.getElementById("openaiBaseUrl").value),
         openai_model: document.getElementById("openaiModel").value.trim(),
         openai_api_key: document.getElementById("openaiApiKey").value,
         codex_model: codexModelValue("codexModel", "codexModelCustom", "gpt-5.3-codex-spark"),
@@ -896,9 +993,10 @@
 
     function applyModelConfigToFields() {
       document.getElementById("modelBackend").value = modelConfig.backend === "codex" ? "codex" : "openai";
-      document.getElementById("openaiBaseUrl").value = modelConfig.openai_base_url;
+      document.getElementById("openaiBaseUrl").value = normalizeOpenAIBaseUrl(modelConfig.openai_base_url);
       document.getElementById("openaiModel").value = modelConfig.openai_model;
       document.getElementById("openaiApiKey").value = modelConfig.openai_api_key;
+      document.getElementById("remoteManualHosts").value = remoteConfig.manual;
       setCodexModelValue("codexModel", "codexModelCustom", modelConfig.codex_model, "gpt-5.3-codex-spark");
       setCodexModelValue("codexFallbackModel", "codexFallbackCustom", modelConfig.codex_fallback_model, "gpt-5.4-mini");
       applyModelBackendState();
@@ -918,6 +1016,56 @@
       localStorage.setItem("sessionRenamer.codexModel", config.codex_model);
       localStorage.setItem("sessionRenamer.codexFallbackModel", config.codex_fallback_model);
       applyModelBackendState();
+    }
+
+    function normalizeOpenAIBaseUrlField() {
+      const field = document.getElementById("openaiBaseUrl");
+      field.value = normalizeOpenAIBaseUrl(field.value);
+      saveModelConfigFromFields();
+    }
+
+    function splitHostText(value) {
+      return String(value || "").split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean);
+    }
+
+    function selectedRemoteHosts() {
+      const hosts = new Set(remoteConfig.selected);
+      splitHostText(document.getElementById("remoteManualHosts").value).forEach((host) => hosts.add(host));
+      return Array.from(hosts);
+    }
+
+    function saveRemoteConfigFromFields() {
+      remoteConfig.manual = document.getElementById("remoteManualHosts").value.trim();
+      localStorage.setItem("sessionRenamer.remoteHosts", Array.from(remoteConfig.selected).join(","));
+      localStorage.setItem("sessionRenamer.remoteManualHosts", remoteConfig.manual);
+    }
+
+    function renderRemoteHostList() {
+      const list = document.getElementById("remoteHostList");
+      list.innerHTML = "";
+      if (!remoteHostCandidates.length) {
+        const empty = document.createElement("span");
+        empty.className = "pill";
+        empty.textContent = t("remoteNoHosts");
+        list.appendChild(empty);
+        return;
+      }
+      remoteHostCandidates.forEach((host) => {
+        const label = document.createElement("label");
+        label.className = "remote-host-option";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = remoteConfig.selected.has(host);
+        input.addEventListener("change", () => {
+          if (input.checked) remoteConfig.selected.add(host);
+          else remoteConfig.selected.delete(host);
+          saveRemoteConfigFromFields();
+        });
+        const text = document.createElement("span");
+        text.textContent = host;
+        label.append(input, text);
+        list.appendChild(label);
+      });
     }
 
     function renderMeta() {
@@ -963,6 +1111,8 @@
       document.getElementById("exportToolsLabel").textContent = t("exportTools");
       document.getElementById("aiToolsLabel").textContent = t("aiTools");
       document.getElementById("modelToolsLabel").textContent = t("modelTools");
+      document.getElementById("remoteSessionsLabel").textContent = t("remoteSessions");
+      document.getElementById("remoteManualLabel").textContent = t("remoteManualHosts");
       document.getElementById("modelBackendLabel").textContent = t("modelBackend");
       document.getElementById("openaiBaseUrlLabel").textContent = t("openaiBaseUrl");
       document.getElementById("openaiModelLabel").textContent = t("openaiModel");
@@ -974,6 +1124,7 @@
       document.getElementById("openaiBaseUrl").placeholder = t("openaiBaseUrlPlaceholder");
       document.getElementById("openaiModel").placeholder = t("openaiModelPlaceholder");
       document.getElementById("openaiApiKey").placeholder = t("openaiApiKeyPlaceholder");
+      document.getElementById("remoteManualHosts").placeholder = t("remoteManualPlaceholder");
       document.getElementById("codexModelCustom").placeholder = t("customCodexModelPlaceholder");
       document.getElementById("codexFallbackCustom").placeholder = t("customCodexFallbackPlaceholder");
       document.getElementById("fallbackToolsLabel").textContent = t("fallbackTools");
@@ -995,6 +1146,7 @@
         changed: "filterChanged"
       };
       [...filter.options].forEach((option) => { option.textContent = t(labels[option.value]); });
+      renderRemoteHostList();
       renderMeta();
     }
 
@@ -1095,6 +1247,7 @@
     function buildAssistantPromptFromSeed(seed) {
       if (!seed || !seed.kind) return "";
       if (seed.kind === "startReview") return buildStartReviewPrompt(seed.options || {});
+      if (seed.kind === "codexSubagent") return buildCodexSubagentPrompt(seed.options || {});
       if (seed.kind === "desktopApply") return buildDesktopApplyPrompt(seed.options || {});
       if (seed.kind === "desktopResult") return buildDesktopResultPrompt(seed.options || {});
       return "";
@@ -1128,20 +1281,111 @@
       renderAssistantPrompt();
     }
 
+    function selectAssistantPromptText(textArea) {
+      textArea.readOnly = false;
+      textArea.focus();
+      textArea.select();
+      if (typeof textArea.setSelectionRange === "function") {
+        textArea.setSelectionRange(0, textArea.value.length);
+      }
+      textArea.readOnly = !assistantPromptEditable;
+    }
+
+    function execCommandCopyFromElement(textArea) {
+      selectAssistantPromptText(textArea);
+      return document.execCommand("copy") === true;
+    }
+
+    function execCommandCopyFromScratch(text) {
+      const scratch = document.createElement("textarea");
+      scratch.value = text;
+      scratch.setAttribute("aria-hidden", "true");
+      scratch.style.position = "fixed";
+      scratch.style.left = "-9999px";
+      scratch.style.top = "0";
+      scratch.style.width = "1px";
+      scratch.style.height = "1px";
+      scratch.style.opacity = "0";
+      document.body.appendChild(scratch);
+      scratch.focus();
+      scratch.select();
+      if (typeof scratch.setSelectionRange === "function") {
+        scratch.setSelectionRange(0, scratch.value.length);
+      }
+      const copied = document.execCommand("copy") === true;
+      scratch.remove();
+      return copied;
+    }
+
+    async function copyTextToClipboard(textArea) {
+      const text = textArea.value;
+      if (!text) return false;
+      if (window.navigator?.clipboard && window.isSecureContext) {
+        await window.navigator.clipboard.writeText(text);
+        return true;
+      }
+      try {
+        if (execCommandCopyFromElement(textArea)) return true;
+      } catch (_) {
+        // Try the scratch element below.
+      }
+      return execCommandCopyFromScratch(text);
+    }
+
+    function firstText(...values) {
+      for (const value of values) {
+        if (typeof value === "string" && value.trim()) return value.trim();
+      }
+      return "";
+    }
+
+    function inferCurrentDir() {
+      const explicit = firstText(payload.current_dir);
+      if (explicit) return explicit;
+      const paths = payload.paths && typeof payload.paths === "object" ? payload.paths : {};
+      const pathValue = firstText(paths.desktop_apply_request, paths.start_review_request, paths.review, payload.proposals_file);
+      if (pathValue && /[\\\/]/.test(pathValue)) {
+        return pathValue.replace(/[\\\/][^\\\/]+$/, "");
+      }
+      return "%USERPROFILE%\\.codex\\tmp\\session-renamer\\current";
+    }
+
+    function pathFromPayload(key, fileName) {
+      const paths = payload.paths && typeof payload.paths === "object" ? payload.paths : {};
+      const explicit = firstText(paths[key]);
+      if (explicit) return explicit;
+      return `${inferCurrentDir().replace(/[\\\/]+$/, "")}\\${fileName}`;
+    }
+
+    function optionPath(options, camelName, snakeName, payloadKey, fileName) {
+      return firstText(options[camelName], options[snakeName], pathFromPayload(payloadKey, fileName));
+    }
+
+    function reviewServerUrl(options = {}) {
+      const explicit = firstText(options.serverUrl, options.server_url, payload.review_server_url);
+      if (explicit) return explicit.replace(/\/+$/, "/");
+      if (serverMode && location.origin) return `${location.origin}/`;
+      return "http://127.0.0.1:8765/";
+    }
+
     function buildStartReviewPrompt(options = {}) {
-      const requestPath = options.requestPath || options.request_path || "C:\\Users\\davidli\\.codex\\tmp\\session-renamer\\current\\start_review_request.json";
+      const requestPath = optionPath(options, "requestPath", "request_path", "start_review_request", "start_review_request.json");
       const backend = options.backend || options.backend_config?.backend || "openai";
       const modelText = backend === "codex"
         ? `${options.backend_config?.codex_model || "gpt-5.3-codex-spark"} / ${options.backend_config?.codex_fallback_model || "gpt-5.4-mini"}`
         : `${options.backend_config?.openai_base_url || "http://127.0.0.1:8000/v1"} ${options.backend_config?.openai_model || "(auto model)"}`;
+      const remoteHosts = options.remote_hosts || options.remoteHosts || [];
+      const remoteText = Array.isArray(remoteHosts) && remoteHosts.length ? remoteHosts.join(", ") : "-";
+      const serverUrl = reviewServerUrl(options);
       if (currentLang === "en") {
         return [
           "Please start a fresh Codex session rename review from the web UI request.",
           `Read ${requestPath}.`,
           "Collect the current Desktop-visible local threads with codex_app.list_threads, save them as local_threads.json, then run the skill workflow: maintenance, discover, propose, and render-review.",
           `Selected backend: ${backend}; model settings: ${modelText}.`,
+          `Selected remote SSH hosts: ${remoteText}.`,
           "Do not apply any rename yet. Only generate a fresh review page.",
-          "When the new review.html is ready, restart or refresh the local review server on http://127.0.0.1:8765/ and tell me to refresh the browser."
+          `When the new review.html is ready, restart or refresh the local review server on ${serverUrl} and tell me to refresh the browser.`
         ].join("\n");
       }
       return [
@@ -1149,14 +1393,59 @@
         `请读取 ${requestPath}。`,
         "先用 codex_app.list_threads 拉取当前 Desktop 可见的本地会话，保存为 local_threads.json，然后执行这个 skill 的流程：maintenance、discover、propose、render-review。",
         `已选择后端：${backend}；模型设置：${modelText}。`,
+        `已勾选远程 SSH Host：${remoteText}。`,
         "这一步不要应用任何改名，只生成新的审核页。",
-        "新的 review.html 准备好后，请重启或刷新本地审核服务 http://127.0.0.1:8765/，然后告诉我刷新浏览器。"
+        `新的 review.html 准备好后，请重启或刷新本地审核服务 ${serverUrl}，然后告诉我刷新浏览器。`
       ].join("\n");
     }
 
+    function buildCodexSubagentPrompt(options = {}) {
+      const requestPath = optionPath(options, "requestPath", "request_path", "start_review_request", "start_review_request.json");
+      const promptPath = optionPath(options, "promptPath", "prompt_path", "subagent_prompt", "subagent_prompt.txt");
+      const manifestPath = firstText(options.manifestPath, options.manifest_path, pathFromPayload("subagent_manifest", "subagent_manifest.json"));
+      const resultDir = firstText(options.resultDir, options.result_dir, pathFromPayload("subagent_results", "subagent_results"));
+      const chunkCount = options.chunkCount || options.chunk_count || "";
+      const nextCommand = options.nextCommand || options.next_command || "";
+      const commandsPath = firstText(options.commandsPath, options.commands_path, pathFromPayload("agent_review_commands", "agent_review_commands.md"));
+      const backendConfig = options.backend_config || {};
+      const modelText = `${backendConfig.codex_model || "gpt-5.3-codex-spark"} / ${backendConfig.codex_fallback_model || "gpt-5.4-mini"}`;
+      const remoteHosts = options.remote_hosts || options.remoteHosts || [];
+      const remoteText = Array.isArray(remoteHosts) && remoteHosts.length ? remoteHosts.join(", ") : "-";
+      const commandLine = nextCommand ? `\n${nextCommand}` : "";
+      const commandHint = commandsPath ? `\n参考命令文件：${commandsPath}` : "";
+      if (currentLang === "en") {
+        return [
+          "Please continue the Codex session rename review that I started from the web UI.",
+          `Read the request: ${requestPath}.`,
+          `Read the generated handoff prompt: ${promptPath}.`,
+          manifestPath ? `Read the chunk manifest: ${manifestPath}.` : "",
+          `Use Codex subagent proposals with model preference: ${modelText}.`,
+          `Selected remote SSH hosts: ${remoteText}.`,
+          chunkCount ? `Spawn subagents for ${chunkCount} prompt chunks; save each JSON-only reply to its result_path under ${resultDir || "subagent_results"}.` : "Spawn subagents for each prompt chunk and save each JSON-only reply to its result_path.",
+          "Run merge-subagent to create subagent_proposals.json, then rerun agent-review with that JSON.",
+          nextCommand ? `Rerun command:${commandLine}` : "If no rerun command is available, use agent-review --backend subagent --subagent-json subagent_proposals.json.",
+          "Do not apply any rename yet. Only regenerate review.html and refresh the local review server.",
+          commandsPath ? `Command notes: ${commandsPath}` : ""
+        ].filter(Boolean).join("\n");
+      }
+      return [
+        "请继续我刚刚在网页里发起的 Codex session 重命名审核。",
+        `请读取请求文件：${requestPath}。`,
+        `请读取已生成的子 agent handoff 提示词：${promptPath}。`,
+        manifestPath ? `请读取分块清单：${manifestPath}。` : "",
+        `使用 Codex 子 agent 生成建议，模型优先级：${modelText}。`,
+        `已勾选远程 SSH Host：${remoteText}。`,
+        chunkCount ? `请按清单为 ${chunkCount} 个 prompt chunk 分别触发子 agent，把每个 JSON-only 回复保存到对应 result_path（目录：${resultDir || "subagent_results"}）。` : "请按清单为每个 prompt chunk 分别触发子 agent，并保存每个 JSON-only 回复。",
+        "然后运行 merge-subagent 合并为 subagent_proposals.json，再带这个 JSON 重新运行 agent-review。",
+        nextCommand ? `重跑命令：${commandLine}` : "如果没有现成命令，请使用 agent-review --backend subagent --subagent-json subagent_proposals.json。",
+        "这一步不要应用任何改名，只重新生成 review.html 并刷新本地审核服务。",
+        commandHint.trim()
+      ].filter(Boolean).join("\n");
+    }
+
     function buildDesktopApplyPrompt(options = {}) {
-      const requestPath = options.requestPath || options.request_path || "C:\\Users\\davidli\\.codex\\tmp\\session-renamer\\current\\desktop_apply_request.json";
-      const resultPath = options.resultPath || options.result_path || "C:\\Users\\davidli\\.codex\\tmp\\session-renamer\\current\\desktop_apply_result.json";
+      const requestPath = optionPath(options, "requestPath", "request_path", "desktop_apply_request", "desktop_apply_request.json");
+      const resultPath = optionPath(options, "resultPath", "result_path", "desktop_apply_result", "desktop_apply_result.json");
       const count = options.count ?? options.apply_count ?? options.desktop_apply_count ?? "";
       const skipped = options.skip ?? options.skip_count ?? "";
       const hosts = options.hosts || hostSummaryText(options.countsByHost || options.desktop_counts_by_host);
@@ -1183,10 +1472,11 @@
     }
 
     function buildDesktopResultPrompt(data) {
-      const resultPath = data.result_path || "C:\\Users\\davidli\\.codex\\tmp\\session-renamer\\current\\desktop_apply_result.json";
-      const applied = data.applied_count || 0;
-      const failed = data.failed_count || 0;
-      const skipped = data.skipped_count || 0;
+      const info = data || {};
+      const resultPath = optionPath(info, "resultPath", "result_path", "desktop_apply_result", "desktop_apply_result.json");
+      const applied = info.applied_count || 0;
+      const failed = info.failed_count || 0;
+      const skipped = info.skipped_count || 0;
       if (currentLang === "en") {
         return [
           "Please inspect the Codex session rename result from the web UI.",
@@ -1228,7 +1518,7 @@
       if (!items.length) {
         const empty = document.createElement("div");
         empty.className = "empty";
-        empty.textContent = t("noMatching");
+        empty.textContent = t(run.backend_used === "waiting_for_start" ? "firstRunEmpty" : "noMatching");
         wrap.replaceChildren(empty);
         return;
       }
@@ -1495,6 +1785,7 @@
         if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
         const promptOptions = {
           requestPath: data.desktop_apply_request_path,
+          resultPath: data.desktop_apply_result_path,
           count: data.desktop_apply_count || data.apply_count,
           skip: data.skip_count,
           countsByHost: data.desktop_counts_by_host
@@ -1524,17 +1815,39 @@
         const response = await fetch("/api/start-review-request", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ backendConfig: modelConfigData() })
+          body: JSON.stringify({ backendConfig: modelConfigData(), remoteHosts: selectedRemoteHosts() })
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
+        const status = data.status || {};
         const promptOptions = {
           requestPath: data.request_path,
+          serverUrl: reviewServerUrl(),
           backend_config: data.backend_config,
-          backend: data.backend_config?.backend || modelConfigData().backend
+          backend: data.backend_config?.backend || modelConfigData().backend,
+          remote_hosts: selectedRemoteHosts(),
+          promptPath: status.prompt_path,
+          manifestPath: status.manifest_path,
+          resultDir: status.result_dir,
+          chunkCount: status.chunk_count,
+          commandsPath: status.commands_path,
+          nextCommand: status.next_command
         };
-        setAssistantPrompt(buildStartReviewPrompt(promptOptions), { kind: "startReview", options: promptOptions });
-        setNotice("startReviewPrepared");
+        if (data.state === "review_ready") {
+          setNotice("startReviewDone");
+          window.setTimeout(() => window.location.reload(), 500);
+          return;
+        }
+        if (data.state === "needs_subagent") {
+          setAssistantPrompt(buildCodexSubagentPrompt(promptOptions), { kind: "codexSubagent", options: promptOptions });
+          setNotice("startReviewNeedsSubagent");
+        } else if (data.direct_run) {
+          setAssistantPrompt(buildStartReviewPrompt(promptOptions), { kind: "startReview", options: promptOptions });
+          setNotice("startReviewRunning");
+        } else {
+          setAssistantPrompt(buildStartReviewPrompt(promptOptions), { kind: "startReview", options: promptOptions });
+          setNotice("startReviewPrepared");
+        }
       } catch (error) {
         setNotice("startReviewFailed", { message: error.message });
       } finally {
@@ -1568,6 +1881,7 @@
         if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
         const promptOptions = {
           requestPath: data.desktop_apply_request_path,
+          resultPath: data.desktop_apply_result_path,
           count: data.desktop_apply_count,
           countsByHost: data.desktop_counts_by_host
         };
@@ -1675,6 +1989,7 @@
         } else {
           const promptOptions = {
             requestPath: data.request_path,
+            resultPath: data.result_path,
             count: data.apply_count
           };
           setAssistantPrompt(buildDesktopApplyPrompt(promptOptions), { kind: "desktopApply", options: promptOptions });
@@ -1713,6 +2028,7 @@
         if (data.state && data.state !== "none" && data.state !== "completed" && !assistantPromptText) {
           const promptOptions = {
             requestPath: data.request_path,
+            resultPath: data.result_path,
             count: data.apply_count
           };
           setAssistantPrompt(buildDesktopApplyPrompt(promptOptions), { kind: "desktopApply", options: promptOptions });
@@ -1868,7 +2184,7 @@
         const response = await fetch("/api/apply-remote-index", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({})
+          body: JSON.stringify({ hosts: selectedRemoteHosts() })
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.error || JSON.stringify(data.failed || []));
@@ -1899,7 +2215,7 @@
         const response = await fetch("/api/apply-remote-app-server", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({})
+          body: JSON.stringify({ hosts: selectedRemoteHosts() })
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.error || JSON.stringify(data.failed || []));
@@ -1930,7 +2246,7 @@
         const response = await fetch("/api/apply-remote-state", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({})
+          body: JSON.stringify({ hosts: selectedRemoteHosts() })
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.error || JSON.stringify(data.failed || []));
@@ -1980,24 +2296,24 @@
       const textArea = document.getElementById("assistantPromptText");
       assistantPromptText = textArea.value;
       try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(textArea.value);
-        } else {
-          textArea.focus();
-          textArea.select();
-          document.execCommand("copy");
-        }
+        const copied = await copyTextToClipboard(textArea);
+        if (!copied) throw new Error("copy returned false");
         button.textContent = t("copiedPrompt");
         setTimeout(() => { button.textContent = t("copyPrompt"); }, 1200);
       } catch (_) {
+        selectAssistantPromptText(textArea);
         setNotice("copyPromptFailed");
-        render();
+        updateSummary();
       }
     });
     ["modelBackend", "openaiBaseUrl", "openaiModel", "openaiApiKey", "codexModel", "codexModelCustom", "codexFallbackModel", "codexFallbackCustom"].forEach((id) => {
       document.getElementById(id).addEventListener("change", saveModelConfigFromFields);
       document.getElementById(id).addEventListener("input", saveModelConfigFromFields);
     });
+    document.getElementById("openaiBaseUrl").addEventListener("blur", normalizeOpenAIBaseUrlField);
+    document.getElementById("openaiBaseUrl").addEventListener("change", normalizeOpenAIBaseUrlField);
+    document.getElementById("remoteManualHosts").addEventListener("input", saveRemoteConfigFromFields);
+    document.getElementById("remoteManualHosts").addEventListener("change", saveRemoteConfigFromFields);
     document.getElementById("modelBackend").addEventListener("change", () => {
       setNotice(modelConfigData().backend === "codex" ? "codexBackendHint" : "openaiBackendHint");
       render();

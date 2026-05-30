@@ -32,6 +32,8 @@ DEFAULT_VLLM_BASE_URL = os.environ.get("SESSION_RENAMER_OPENAI_BASE_URL", "http:
 DEFAULT_VLLM_API_KEY = "local-vllm"
 DEFAULT_RETENTION_DAYS = 60
 DEFAULT_BACKUP_KEEP = 20
+DEFAULT_SUBAGENT_CHUNK_SIZE = 25
+URL_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
 CODEX_SUBAGENT_MODELS = {
     "gpt-5.5",
     "gpt-5.4",
@@ -177,6 +179,48 @@ def write_json(path: Path, data: Any) -> None:
         json.dump(data, fh, ensure_ascii=False, indent=2, sort_keys=True)
         fh.write("\n")
     tmp.replace(path)
+
+
+def ssh_config_hosts(config_path: Path | None = None) -> list[str]:
+    path = config_path or (Path.home() / ".ssh" / "config")
+    if not path.exists():
+        return []
+    hosts: list[str] = []
+    seen: set[str] = set()
+    with path.open("r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            match = re.match(r"(?i)^host\s+(.+)$", stripped)
+            if not match:
+                continue
+            for host in match.group(1).split():
+                if any(ch in host for ch in "*?[]!") or host.lower() == "localhost":
+                    continue
+                if host not in seen:
+                    seen.add(host)
+                    hosts.append(host)
+    return hosts
+
+
+def sanitize_remote_hosts(value: Any) -> list[str]:
+    if isinstance(value, str):
+        raw_items = re.split(r"[\s,;]+", value)
+    elif isinstance(value, list):
+        raw_items = [str(item) for item in value]
+    else:
+        raw_items = []
+    hosts: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        host = item.strip()
+        if not host or any(ch.isspace() for ch in host):
+            continue
+        if re.fullmatch(r"[A-Za-z0-9_.@:-]{1,120}", host) and host not in seen:
+            seen.add(host)
+            hosts.append(host)
+    return hosts
 
 
 def sha_text(value: str) -> str:
@@ -852,7 +896,24 @@ def request_json(url: str, payload: dict[str, Any], api_key: str, timeout: int) 
         return json.loads(resp.read().decode("utf-8"))
 
 
+def normalize_openai_base_url(value: Any, default: str = DEFAULT_VLLM_BASE_URL) -> str:
+    text = str(value or "").strip() or default
+    if not URL_SCHEME_RE.match(text):
+        text = f"http://{text}"
+    parsed = urllib.parse.urlsplit(text)
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if len(path_parts) >= 2 and path_parts[-2:] == ["chat", "completions"]:
+        path_parts = path_parts[:-2]
+    while path_parts and path_parts[-1] in {"models", "completions"}:
+        path_parts.pop()
+    if not path_parts or path_parts[-1] != "v1":
+        path_parts.append("v1")
+    path = "/" + "/".join(path_parts)
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
+
+
 def get_vllm_model(base_url: str, api_key: str, timeout: int) -> str:
+    base_url = normalize_openai_base_url(base_url)
     req = urllib.request.Request(
         f"{base_url.rstrip('/')}/models",
         method="GET",
@@ -874,6 +935,7 @@ def vllm_proposals(
     timeout: int,
     options: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
+    base_url = normalize_openai_base_url(base_url)
     if not model:
         model = get_vllm_model(base_url, api_key, timeout)
     compact_sessions = [
@@ -1054,7 +1116,7 @@ def normalize_external_proposals(path: Path, sessions: list[dict[str, Any]]) -> 
     return proposals
 
 
-def build_subagent_prompt(sessions: list[dict[str, Any]]) -> str:
+def build_subagent_prompt(sessions: list[dict[str, Any]], context_limit: int = 900) -> str:
     compact = [
         {
             "id": s["threadId"],
@@ -1062,7 +1124,7 @@ def build_subagent_prompt(sessions: list[dict[str, Any]]) -> str:
             "title": s.get("title") or "",
             "cwd_basename": clean_snippet(Path(str(s.get("cwd") or "")).name, 120),
             "preview": clean_snippet(str(s.get("preview") or ""), 160),
-            "context": clean_snippet(str(s.get("contextSnippet") or ""), 1200),
+            "context": clean_snippet(str(s.get("contextSnippet") or ""), context_limit),
         }
         for s in sessions
     ]
@@ -1073,6 +1135,152 @@ def build_subagent_prompt(sessions: list[dict[str, Any]]) -> str:
         "prefer Chinese if context is Chinese; avoid secrets; do not invent ids. sessions="
         + json.dumps(compact, ensure_ascii=False)
     )
+
+
+def write_subagent_handoff(current: Path, sessions: list[dict[str, Any]], chunk_size: int = DEFAULT_SUBAGENT_CHUNK_SIZE) -> dict[str, Any]:
+    chunk_size = max(1, int(chunk_size or DEFAULT_SUBAGENT_CHUNK_SIZE))
+    prompt_dir = current / "subagent_prompts"
+    result_dir = current / "subagent_results"
+    for directory in (prompt_dir, result_dir):
+        if directory.exists():
+            shutil.rmtree(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+
+    chunks = batched(sessions, chunk_size)
+    manifest_chunks = []
+    for index, chunk in enumerate(chunks, start=1):
+        stem = f"chunk-{index:03d}"
+        prompt_path = prompt_dir / f"{stem}.prompt.txt"
+        result_path = result_dir / f"{stem}.json"
+        prompt_path.write_text(build_subagent_prompt(chunk), encoding="utf-8", newline="\n")
+        manifest_chunks.append(
+            {
+                "index": index,
+                "count": len(chunk),
+                "ids": [s["threadId"] for s in chunk],
+                "prompt_path": str(prompt_path),
+                "result_path": str(result_path),
+            }
+        )
+
+    manifest = {
+        "created_at": iso_now(),
+        "count": len(sessions),
+        "chunk_size": chunk_size,
+        "chunk_count": len(manifest_chunks),
+        "prompt_dir": str(prompt_dir),
+        "result_dir": str(result_dir),
+        "output_path": str(current / "subagent_proposals.json"),
+        "chunks": manifest_chunks,
+    }
+    write_json(current / "subagent_manifest.json", manifest)
+
+    instruction_lines = [
+        "Codex session rename subagent handoff.",
+        "Goal: generate title proposals without applying any rename.",
+        "",
+        f"Read manifest: {current / 'subagent_manifest.json'}",
+        f"Prompt chunks: {prompt_dir}",
+        f"Write each JSON-only result into: {result_dir}",
+        "",
+        "For each chunk entry, spawn one Codex subagent using prompt_path and save the JSON-only reply to result_path.",
+        'Each result must have shape: {"renames":[{"id":"...","new_title":"emoji + space + concise descriptive title","reason":"..."}]}',
+        "Do not invent ids. If uncertain, omit that item; merge-subagent will report missing ids.",
+        "",
+        "After all chunks finish, run:",
+        f"python {ps_quote(script_path_for_status())} merge-subagent --sessions {ps_quote(current / 'sessions.json')} --manifest {ps_quote(current / 'subagent_manifest.json')} --output {ps_quote(current / 'subagent_proposals.json')}",
+        "",
+        "Then rerun agent-review with --subagent-json subagent_proposals.json.",
+    ]
+    (current / "subagent_prompt.txt").write_text("\n".join(instruction_lines), encoding="utf-8", newline="\n")
+    return manifest
+
+
+def merge_subagent_result_files(
+    sessions_path: Path,
+    output_path: Path,
+    *,
+    manifest_path: Path | None = None,
+    result_dir: Path | None = None,
+    input_files: list[Path] | None = None,
+) -> dict[str, Any]:
+    sessions_data = read_json(sessions_path, {})
+    sessions = sessions_data.get("sessions", []) if isinstance(sessions_data, dict) else sessions_data
+    if not isinstance(sessions, list):
+        raise ValueError("sessions input must be a list or object with sessions")
+    valid_ids = {normalize_thread_id(s) for s in sessions if normalize_thread_id(s)}
+    result_paths: list[Path] = []
+    manifest = read_json(manifest_path, {}) if manifest_path and manifest_path.exists() else {}
+    if isinstance(manifest, dict):
+        for chunk in manifest.get("chunks", []):
+            if isinstance(chunk, dict) and chunk.get("result_path"):
+                result_paths.append(Path(str(chunk["result_path"])))
+    if result_dir and result_dir.exists():
+        result_paths.extend(sorted(result_dir.glob("*.json")))
+    if input_files:
+        result_paths.extend(input_files)
+
+    seen_paths: set[Path] = set()
+    renames_by_id: dict[str, dict[str, str]] = {}
+    invalid_ids: list[str] = []
+    parse_errors: list[dict[str, str]] = []
+    duplicate_count = 0
+    for path in result_paths:
+        path = path.resolve()
+        if path in seen_paths or not path.exists():
+            continue
+        seen_paths.add(path)
+        data = read_json(path, None)
+        items = data.get("renames") if isinstance(data, dict) else data
+        if not isinstance(items, list):
+            parse_errors.append({"path": str(path), "error": "missing renames list"})
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            thread_id = str(item.get("id") or item.get("threadId") or "")
+            if thread_id not in valid_ids:
+                invalid_ids.append(thread_id)
+                continue
+            if thread_id in renames_by_id:
+                duplicate_count += 1
+            renames_by_id[thread_id] = {
+                "id": thread_id,
+                "new_title": str(item.get("new_title") or item.get("newTitle") or "").strip(),
+                "reason": str(item.get("reason") or "Generated by subagent.").strip()[:240],
+            }
+
+    ordered = [renames_by_id[normalize_thread_id(session)] for session in sessions if normalize_thread_id(session) in renames_by_id]
+    missing_sessions = [session for session in sessions if normalize_thread_id(session) not in renames_by_id]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(output_path, {"renames": ordered})
+
+    current = output_path.parent
+    missing_path = current / "subagent_missing_sessions.json"
+    missing_prompt_path = current / "subagent_missing_prompt.txt"
+    if missing_sessions:
+        write_json(missing_path, {"sessions": missing_sessions})
+        missing_prompt_path.write_text(build_subagent_prompt(missing_sessions), encoding="utf-8", newline="\n")
+    else:
+        for stale in (missing_path, missing_prompt_path):
+            if stale.exists():
+                stale.unlink()
+
+    report = {
+        "created_at": iso_now(),
+        "output_path": str(output_path),
+        "sessions_count": len(sessions),
+        "rename_count": len(ordered),
+        "missing_count": len(missing_sessions),
+        "missing_prompt_path": str(missing_prompt_path) if missing_sessions else None,
+        "invalid_id_count": len(invalid_ids),
+        "invalid_ids": invalid_ids[:50],
+        "duplicate_count": duplicate_count,
+        "result_files": [str(path) for path in sorted(seen_paths)],
+        "parse_errors": parse_errors,
+    }
+    write_json(current / "subagent_merge_report.json", report)
+    return report
 
 
 def build_subagent_request(current: Path, body: dict[str, Any]) -> dict[str, Any]:
@@ -1208,7 +1416,7 @@ def run_propose(args: argparse.Namespace) -> int:
     missing: list[dict[str, Any]] = []
     cache_hits = 0
     backend_key = args.backend
-    force_refresh = args.backend == "subagent" and bool(args.subagent_json)
+    force_refresh = args.backend == "subagent" and (bool(args.subagent_json) or bool(getattr(args, "force_refresh", False)))
     for session in sessions:
         if not normalize_thread_id(session):
             continue
@@ -1230,14 +1438,16 @@ def run_propose(args: argparse.Namespace) -> int:
     if missing:
         try:
             if args.backend == "subagent":
-                prompt = build_subagent_prompt(missing)
-                prompt_path = p["current"] / "subagent_prompt.txt"
-                prompt_path.write_text(prompt, encoding="utf-8", newline="\n")
                 if not args.subagent_json:
+                    write_subagent_handoff(p["current"], missing, getattr(args, "subagent_chunk_size", DEFAULT_SUBAGENT_CHUNK_SIZE))
                     generated = [heuristic_proposal(s) | {"status": "subagent_needed"} for s in missing]
                     backend_used = "subagent_prompt"
                 else:
                     generated = normalize_external_proposals(Path(args.subagent_json), missing)
+                    generated_ids = {proposal.get("threadId") for proposal in generated}
+                    for session in missing:
+                        if session["threadId"] not in generated_ids:
+                            generated.append(heuristic_proposal(session) | {"status": "fallback_missing_subagent"})
                     backend_used = "subagent"
             elif args.backend in ("vllm", "auto"):
                 generated = []
@@ -1260,8 +1470,7 @@ def run_propose(args: argparse.Namespace) -> int:
             backend_error = str(exc)
             if args.backend == "vllm":
                 raise
-            prompt = build_subagent_prompt(missing)
-            (p["current"] / "subagent_prompt.txt").write_text(prompt, encoding="utf-8", newline="\n")
+            write_subagent_handoff(p["current"], missing, getattr(args, "subagent_chunk_size", DEFAULT_SUBAGENT_CHUNK_SIZE))
             generated = [heuristic_proposal(s) | {"status": "fallback_after_error"} for s in missing]
             backend_used = "heuristic_fallback"
 
@@ -1277,7 +1486,8 @@ def run_propose(args: argparse.Namespace) -> int:
         )
         if matching_session:
             key = cache_key(matching_session, backend_key)
-            cache_data["entries"][key] = {"created_at": iso_now(), "proposal": proposal}
+            if proposal.get("status") not in {"fallback_missing_subagent", "fallback_after_error"}:
+                cache_data["entries"][key] = {"created_at": iso_now(), "proposal": proposal}
         proposals.append(proposal)
 
     for proposal in proposals:
@@ -1315,8 +1525,21 @@ def run_render_review(args: argparse.Namespace) -> int:
         "created_at": iso_now(),
         "proposals_file": str(proposals_path),
         "approved_file_name": "approved.json",
+        "current_dir": str(p["current"]),
+        "paths": {
+            "start_review_request": str(p["current"] / "start_review_request.json"),
+            "subagent_prompt": str(p["current"] / "subagent_prompt.txt"),
+            "subagent_manifest": str(p["current"] / "subagent_manifest.json"),
+            "subagent_results": str(p["current"] / "subagent_results"),
+            "agent_review_commands": str(p["current"] / "agent_review_commands.md"),
+            "desktop_apply_request": str(p["current"] / "desktop_apply_request.json"),
+            "desktop_apply_result": str(p["current"] / "desktop_apply_result.json"),
+            "local_threads": str(p["current"] / "local_threads.json"),
+            "review": str(p["current"] / "review.html"),
+        },
         "maintenance": maintenance,
         "proposal_run": data,
+        "remote_host_candidates": ssh_config_hosts(),
     }
     template_path = skill_dir() / "assets" / "review_template.html"
     template = template_path.read_text(encoding="utf-8")
@@ -1326,6 +1549,90 @@ def run_render_review(args: argparse.Namespace) -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(rendered, encoding="utf-8", newline="\n")
     print(json.dumps({"output": str(output), "count": data.get("count", 0)}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def run_merge_subagent(args: argparse.Namespace) -> int:
+    home = Path(args.codex_home).resolve() if args.codex_home else codex_home()
+    p = paths(home)
+    ensure_dirs(p)
+    current = p["current"]
+    manifest_path = Path(args.manifest) if args.manifest else current / "subagent_manifest.json"
+    sessions_path = Path(args.sessions) if args.sessions else current / "sessions.json"
+    result_dir = Path(args.result_dir) if args.result_dir else current / "subagent_results"
+    output_path = Path(args.output) if args.output else current / "subagent_proposals.json"
+    input_files = [Path(path) for path in args.input or []]
+    report = merge_subagent_result_files(
+        sessions_path,
+        output_path,
+        manifest_path=manifest_path,
+        result_dir=result_dir,
+        input_files=input_files,
+    )
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    if args.strict and report["missing_count"]:
+        return 2
+    return 0
+
+
+def run_bootstrap_review(args: argparse.Namespace) -> int:
+    home = Path(args.codex_home).resolve() if args.codex_home else codex_home()
+    p = paths(home)
+    ensure_dirs(p)
+    current = p["current"]
+    local_json = Path(args.local_json) if args.local_json else None
+    staged_local = None
+    if local_json and local_json.exists():
+        stamp = utc_now().strftime("%Y%m%d-%H%M%S")
+        staging = p["tmp_root"] / "bootstrap-staging" / stamp
+        staging.mkdir(parents=True, exist_ok=True)
+        staged_local = staging / "local_threads.json"
+        shutil.copy2(local_json, staged_local)
+
+    run_maintenance(
+        argparse.Namespace(
+            codex_home=str(home),
+            cache_days=args.cache_days,
+            keep_backups=args.keep_backups,
+        )
+    )
+
+    current.mkdir(parents=True, exist_ok=True)
+    if staged_local:
+        shutil.copy2(staged_local, current / "local_threads.json")
+    waiting = {
+        "created_at": iso_now(),
+        "proposer_version": PROPOSER_VERSION,
+        "backend_requested": "user_config",
+        "backend_used": "waiting_for_start",
+        "backend_error": None,
+        "cache_hits": 0,
+        "count": 0,
+        "proposals": [],
+        "message": "Waiting for the user to configure a backend and click Start review.",
+    }
+    write_json(current / "proposals.json", waiting)
+    write_json(
+        current / "start_review_status.json",
+        {
+            "created_at": iso_now(),
+            "state": "ready_for_user_config",
+            "local_threads": str(current / "local_threads.json") if staged_local else None,
+            "message": "Review page is ready. Configure the backend in the browser, then click Start review.",
+        },
+    )
+    run_render_review(argparse.Namespace(codex_home=str(home), input=None, output=None))
+    print(
+        json.dumps(
+            {
+                "state": "ready_for_user_config",
+                "review_path": str(current / "review.html"),
+                "has_local_threads": bool(staged_local),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -1425,7 +1732,7 @@ def sanitized_start_backend_config(body: dict[str, Any]) -> dict[str, Any]:
     if backend == "openai":
         config.update(
             {
-                "openai_base_url": str(raw.get("openai_base_url") or DEFAULT_VLLM_BASE_URL).strip(),
+                "openai_base_url": normalize_openai_base_url(raw.get("openai_base_url") or DEFAULT_VLLM_BASE_URL),
                 "openai_model": str(raw.get("openai_model") or "").strip(),
                 "openai_api_key": "[not stored]",
                 "api_key_note": "The review page does not persist API keys. Use local vLLM/default key or provide a key at execution time.",
@@ -1443,11 +1750,13 @@ def sanitized_start_backend_config(body: dict[str, Any]) -> dict[str, Any]:
 
 def build_start_review_request(current: Path, body: dict[str, Any]) -> dict[str, Any]:
     backend_config = sanitized_start_backend_config(body if isinstance(body, dict) else {})
+    remote_hosts = sanitize_remote_hosts(body.get("remoteHosts") if isinstance(body, dict) else [])
     request = {
         "created_at": iso_now(),
         "status": "pending_codex_agent",
         "request": "start_new_review",
         "backend_config": backend_config,
+        "remote_hosts": remote_hosts,
         "output_dir": str(current),
         "expected_outputs": [
             "maintenance_report.json",
@@ -1491,14 +1800,17 @@ def skill_quickstart_text(language: str = "zh") -> str:
                 "Codex Session Rename Review works as review first, apply later.",
                 "",
                 "1. Back up and clean only this skill's previous generated files.",
-                "2. Collect current Codex Desktop-visible sessions and build short redacted context snippets.",
-                "3. Generate title proposals with local vLLM/OpenAI-compatible API or a Codex subagent.",
-                "4. Render the local review page so the user can approve, reject, or edit titles.",
+                "2. Collect current Codex Desktop-visible sessions and open the local configuration page.",
+                "3. After the user clicks Start review, build short redacted context snippets and generate title proposals.",
+                "4. Refresh the local review page so the user can approve, reject, or edit titles.",
                 "5. Apply only approved titles later through the official Codex thread title tool.",
                 "",
-                "Safety: generating the review page never renames sessions; the web page cannot call Codex title tools directly; approved results are checked again before apply.",
+                "Safety: opening the first page never generates or renames sessions; the web page cannot call Codex title tools directly; approved results are checked again before apply.",
                 "",
-                "Fast path after saving codex_app.list_threads output to local_threads.json:",
+                "First page after saving codex_app.list_threads output to local_threads.json:",
+                f"python {ps_quote(script)} bootstrap-review --local-json {ps_quote(local_threads)}",
+                "",
+                "Scriptable generation fallback:",
                 f"python {ps_quote(script)} agent-review --local-json {ps_quote(local_threads)}",
             ]
         )
@@ -1507,14 +1819,17 @@ def skill_quickstart_text(language: str = "zh") -> str:
             "Codex 会话重命名审核采用“先审核、后应用”的流程。",
             "",
             "1. 先备份并清理本 skill 上一次生成的临时文件，不碰全局会话数据。",
-            "2. 拉取当前 Codex Desktop 可见会话，并读取少量脱敏上下文。",
-            "3. 用本地 vLLM/OpenAI 兼容 API 或 Codex 子 agent 生成标题建议。",
-            "4. 生成本地审核页，用户可以批准、拒绝或手动编辑标题。",
+            "2. 先拉取当前 Codex Desktop 可见会话，并打开本地配置页。",
+            "3. 用户点击“开始审核”后，再读取少量脱敏上下文并生成标题建议。",
+            "4. 刷新本地审核页，用户可以批准、拒绝或手动编辑标题。",
             "5. 用户提交审核后，才通过 Codex 官方 thread title 工具应用已批准标题。",
             "",
-            "安全边界：生成审核页不会改名；网页不能直接调用 Codex 改名工具；真正应用前会再次以批准结果为准。",
+            "安全边界：首次打开网页不会生成或改名；网页不能直接调用 Codex 改名工具；真正应用前会再次以批准结果为准。",
             "",
-            "保存 codex_app.list_threads 输出到 local_threads.json 后，可用快速入口：",
+            "保存 codex_app.list_threads 输出到 local_threads.json 后，先打开配置页：",
+            f"python {ps_quote(script)} bootstrap-review --local-json {ps_quote(local_threads)}",
+            "",
+            "需要脚本化生成时可用：",
             f"python {ps_quote(script)} agent-review --local-json {ps_quote(local_threads)}",
         ]
     )
@@ -1571,10 +1886,17 @@ If `agent_review_status.json` says `needs_subagent`, read:
 Get-Content -Raw {ps_quote(current / "subagent_prompt.txt")}
 ```
 
-Spawn the configured Codex subagent with that prompt. Save its JSON-only reply to:
+This is a token-saving chunked handoff. Read the manifest:
 
 ```text
-{current / "subagent_proposals.json"}
+{current / "subagent_manifest.json"}
+```
+
+For each entry in `chunks[]`, spawn the configured Codex subagent with `prompt_path`.
+Save each JSON-only reply to that chunk's `result_path`, then merge:
+
+```powershell
+python {ps_quote(script)} merge-subagent --sessions {ps_quote(current / "sessions.json")} --manifest {ps_quote(current / "subagent_manifest.json")} --output {ps_quote(current / "subagent_proposals.json")}
 ```
 
 Then finish the review generation:
@@ -1671,12 +1993,15 @@ def run_agent_review(args: argparse.Namespace) -> int:
         current_subagent_json = current / "subagent_proposals.json"
         shutil.copy2(staged_subagent_json, current_subagent_json)
 
+    request_remote_hosts = sanitize_remote_hosts(request.get("remote_hosts")) if isinstance(request, dict) else []
+    ssh_hosts = list(args.ssh_host or request_remote_hosts)
+
     run_discover(
         argparse.Namespace(
             codex_home=str(home),
             local_json=str(current_local),
             remote_index=args.remote_index,
-            ssh_host=args.ssh_host,
+            ssh_host=ssh_hosts,
             output=None,
             enrich_transcripts=True,
             local_sessions_root=None,
@@ -1684,7 +2009,7 @@ def run_agent_review(args: argparse.Namespace) -> int:
     )
 
     config = request.get("backend_config") if isinstance(request.get("backend_config"), dict) else {}
-    vllm_base_url = args.vllm_base_url or str(config.get("openai_base_url") or DEFAULT_VLLM_BASE_URL)
+    vllm_base_url = normalize_openai_base_url(args.vllm_base_url or config.get("openai_base_url") or DEFAULT_VLLM_BASE_URL)
     vllm_model = args.model if args.model is not None else str(config.get("openai_model") or "") or None
     vllm_api_key = args.vllm_api_key or os.environ.get("SESSION_RENAMER_OPENAI_API_KEY") or DEFAULT_VLLM_API_KEY
 
@@ -1701,8 +2026,37 @@ def run_agent_review(args: argparse.Namespace) -> int:
                 timeout=args.timeout,
                 batch_size=args.batch_size,
                 subagent_json=None,
+                force_refresh=True,
+                subagent_chunk_size=getattr(args, "subagent_chunk_size", DEFAULT_SUBAGENT_CHUNK_SIZE),
             )
         )
+        proposals_run = read_json(current / "proposals.json", {})
+        if isinstance(proposals_run, dict) and proposals_run.get("backend_used") == "cache":
+            run_render_review(argparse.Namespace(codex_home=str(home), input=None, output=None))
+            command_path = write_agent_review_commands(
+                current,
+                local_json=current_local,
+                request_path=current_request,
+                backend=backend,
+                subagent_json=None,
+                port=args.port,
+                state="review_ready",
+            )
+            status = {
+                "created_at": iso_now(),
+                "state": "review_ready",
+                "backend": backend,
+                "review_path": str(current / "review.html"),
+                "commands_path": str(command_path),
+                "serve_command": f"powershell -ExecutionPolicy Bypass -File {script_dir_for_status() / 'restart_review_server.ps1'} -Port {args.port}",
+                "message": "All Codex-backend proposals were served from cache. Review page generated without a new subagent call.",
+            }
+            write_json(current / "agent_review_status.json", status)
+            print(json.dumps(status, ensure_ascii=False, indent=2))
+            return 0
+
+        prompt_path = current / "subagent_prompt.txt"
+        manifest = read_json(current / "subagent_manifest.json", {})
         command_path = write_agent_review_commands(
             current,
             local_json=current_local,
@@ -1716,13 +2070,16 @@ def run_agent_review(args: argparse.Namespace) -> int:
             "created_at": iso_now(),
             "state": "needs_subagent",
             "backend": backend,
-            "prompt_path": str(current / "subagent_prompt.txt"),
+            "prompt_path": str(prompt_path),
+            "manifest_path": str(current / "subagent_manifest.json"),
+            "result_dir": str(current / "subagent_results"),
+            "chunk_count": manifest.get("chunk_count") if isinstance(manifest, dict) else None,
             "commands_path": str(command_path),
             "next_command": (
                 f"python {script_path_for_status()} agent-review --local-json {current_local} "
                 f"--request {current_request} --backend subagent --subagent-json {current / 'subagent_proposals.json'}"
             ),
-            "message": "Subagent backend selected. Spawn the Codex subagent, save JSON to subagent_proposals.json, then rerun agent-review with --subagent-json.",
+            "message": "Subagent backend selected. Run chunk prompts from subagent_manifest.json, merge with merge-subagent, then rerun agent-review with --subagent-json.",
         }
         write_json(current / "agent_review_status.json", status)
         print(json.dumps(status, ensure_ascii=False, indent=2))
@@ -1740,6 +2097,8 @@ def run_agent_review(args: argparse.Namespace) -> int:
             timeout=args.timeout,
             batch_size=args.batch_size,
             subagent_json=str(current_subagent_json) if current_subagent_json else None,
+            force_refresh=False,
+            subagent_chunk_size=getattr(args, "subagent_chunk_size", DEFAULT_SUBAGENT_CHUNK_SIZE),
         )
     )
     run_render_review(argparse.Namespace(codex_home=str(home), input=None, output=None))
@@ -1816,6 +2175,7 @@ def desktop_apply_status(current: Path) -> dict[str, Any]:
             "ok": True,
             "state": "pending_codex_tool",
             "request_path": str(request_path),
+            "result_path": str(result_path),
             "apply_count": request.get("apply_count", 0) if isinstance(request, dict) else 0,
         }
     return {"ok": True, "state": "none", "message": "No desktop apply request has been prepared."}
@@ -1940,12 +2300,42 @@ def run_serve_review(args: argparse.Namespace) -> int:
                 try:
                     saved = write_start_review_request(current, body)
                     request = saved["request"]
+                    local_json = current / "local_threads.json"
+                    agent_status = saved["status"]
+                    direct_run = False
+                    selected_remote_hosts = sanitize_remote_hosts(body.get("remoteHosts") if isinstance(body, dict) else [])
+                    if local_json.exists():
+                        backend_config = body.get("backendConfig") if isinstance(body.get("backendConfig"), dict) else {}
+                        run_agent_review(
+                            argparse.Namespace(
+                                codex_home=str(home),
+                                request=str(saved["request_path"]),
+                                local_json=str(local_json),
+                                backend=None,
+                                subagent_json=None,
+                                remote_index=None,
+                                ssh_host=selected_remote_hosts,
+                                vllm_base_url=None,
+                                vllm_api_key=str(backend_config.get("openai_api_key") or "") or None,
+                                model=None,
+                                timeout=args.timeout,
+                                batch_size=1,
+                                port=args.port,
+                                cache_days=DEFAULT_RETENTION_DAYS,
+                                keep_backups=DEFAULT_BACKUP_KEEP,
+                                subagent_chunk_size=DEFAULT_SUBAGENT_CHUNK_SIZE,
+                            )
+                        )
+                        agent_status = read_json(current / "agent_review_status.json", agent_status)
+                        direct_run = True
                     self.send_json(
                         200,
                         {
                             "ok": True,
                             "request_path": str(saved["request_path"]),
-                            "status": saved["status"],
+                            "status": agent_status,
+                            "state": agent_status.get("state"),
+                            "direct_run": direct_run,
                             "backend_config": request["backend_config"],
                         },
                     )
@@ -2059,6 +2449,7 @@ def run_serve_review(args: argparse.Namespace) -> int:
                             "approved_path": str(saved["approved_path"]),
                             "apply_plan_path": str(saved["apply_path"]),
                             "desktop_apply_request_path": str(saved["desktop_request_path"]),
+                            "desktop_apply_result_path": str(current / "desktop_apply_result.json"),
                             "desktop_apply_count": desktop_request["apply_count"],
                             "desktop_counts_by_host": desktop_request["counts_by_host"],
                             "apply_count": plan["apply_count"],
@@ -2086,6 +2477,7 @@ def run_serve_review(args: argparse.Namespace) -> int:
                         {
                             "ok": True,
                             "desktop_apply_request_path": str(request_path),
+                            "desktop_apply_result_path": str(current / "desktop_apply_result.json"),
                             "desktop_apply_count": request["apply_count"],
                             "desktop_counts_by_host": request["counts_by_host"],
                             "status": desktop_apply_status(current),
@@ -2129,7 +2521,7 @@ def run_serve_review(args: argparse.Namespace) -> int:
                 if str(backend_config.get("backend") or "openai") != "openai":
                     self.send_json(400, {"ok": False, "error": "regenerate endpoint requires OpenAI-compatible backend"})
                     return
-                base_url = str(backend_config.get("openai_base_url") or args.vllm_base_url).strip()
+                base_url = normalize_openai_base_url(backend_config.get("openai_base_url") or args.vllm_base_url)
                 api_key = str(backend_config.get("openai_api_key") or args.vllm_api_key)
                 model = str(backend_config.get("openai_model") or args.model or "").strip()
                 cache_key_for_model = f"{base_url}|{sha_text(api_key) if api_key else 'no-key'}"
@@ -2826,12 +3218,28 @@ def build_parser() -> argparse.ArgumentParser:
     propose.add_argument("--timeout", type=int, default=30)
     propose.add_argument("--batch-size", type=int, default=1, help="Maximum sessions per vLLM request. Default is 1 for rich-context title generation.")
     propose.add_argument("--subagent-json", help="Validated JSON returned by a subagent.")
+    propose.add_argument("--subagent-chunk-size", type=int, default=DEFAULT_SUBAGENT_CHUNK_SIZE, help="Sessions per Codex subagent prompt chunk.")
     propose.set_defaults(func=run_propose)
+
+    merge_subagent = sub.add_parser("merge-subagent", help="Merge chunked Codex subagent JSON results and report missing ids.")
+    merge_subagent.add_argument("--sessions", help="Input sessions.json path. Defaults to current/sessions.json.")
+    merge_subagent.add_argument("--manifest", help="Input subagent_manifest.json path. Defaults to current/subagent_manifest.json.")
+    merge_subagent.add_argument("--result-dir", help="Directory containing chunk result JSON files. Defaults to current/subagent_results.")
+    merge_subagent.add_argument("--input", action="append", help="Additional subagent JSON result file. Repeatable.")
+    merge_subagent.add_argument("--output", help="Output subagent_proposals.json path.")
+    merge_subagent.add_argument("--strict", action="store_true", help="Return exit code 2 if any sessions are still missing.")
+    merge_subagent.set_defaults(func=run_merge_subagent)
 
     review = sub.add_parser("render-review", help="Render static HTML review page.")
     review.add_argument("--input", help="Input proposals.json path.")
     review.add_argument("--output", help="Output review.html path.")
     review.set_defaults(func=run_render_review)
+
+    bootstrap = sub.add_parser("bootstrap-review", help="Render the first-run backend configuration page without generating proposals.")
+    bootstrap.add_argument("--local-json", help="Optional codex_app.list_threads JSON snapshot to preserve for the Start review button.")
+    bootstrap.add_argument("--cache-days", type=int, default=DEFAULT_RETENTION_DAYS)
+    bootstrap.add_argument("--keep-backups", type=int, default=DEFAULT_BACKUP_KEEP)
+    bootstrap.set_defaults(func=run_bootstrap_review)
 
     agent_review = sub.add_parser("agent-review", help="Run the scriptable part of a web-requested review cycle.")
     agent_review.add_argument("--request", help="Path to start_review_request.json.")
@@ -2845,6 +3253,7 @@ def build_parser() -> argparse.ArgumentParser:
     agent_review.add_argument("--model", help="OpenAI-compatible model id.")
     agent_review.add_argument("--timeout", type=int, default=30)
     agent_review.add_argument("--batch-size", type=int, default=1)
+    agent_review.add_argument("--subagent-chunk-size", type=int, default=DEFAULT_SUBAGENT_CHUNK_SIZE, help="Sessions per Codex subagent prompt chunk.")
     agent_review.add_argument("--port", type=int, default=8765, help="Review server port used in generated commands.")
     agent_review.add_argument("--cache-days", type=int, default=DEFAULT_RETENTION_DAYS)
     agent_review.add_argument("--keep-backups", type=int, default=DEFAULT_BACKUP_KEEP)

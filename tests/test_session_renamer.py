@@ -13,6 +13,35 @@ import session_renamer as sr  # noqa: E402
 
 
 class SessionRenamerTests(unittest.TestCase):
+    def test_normalize_openai_base_url_fills_common_missing_parts(self):
+        cases = {
+            "10.10.2.200:8002": "http://10.10.2.200:8002/v1",
+            "http://10.10.2.200:8002": "http://10.10.2.200:8002/v1",
+            "http://10.10.2.200:8002/v1": "http://10.10.2.200:8002/v1",
+            "http://10.10.2.200:8002/v1/models": "http://10.10.2.200:8002/v1",
+            "https://api.example.test/openai/v1/chat/completions": "https://api.example.test/openai/v1",
+        }
+        for raw, expected in cases.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(sr.normalize_openai_base_url(raw), expected)
+
+    def test_ssh_config_hosts_filters_patterns_and_deduplicates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config"
+            config.write_text(
+                "\n".join(
+                    [
+                        "Host server1 server2",
+                        "Host *",
+                        "Host !blocked",
+                        "Host Mac-Mini",
+                        "Host server1",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(sr.ssh_config_hosts(config), ["server1", "server2", "Mac-Mini"])
+
     def test_maintenance_backs_up_and_prunes_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -209,25 +238,55 @@ class SessionRenamerTests(unittest.TestCase):
                 {
                     "backendConfig": {
                         "backend": "openai",
-                        "openai_base_url": "https://api.example.test/v1",
+                        "openai_base_url": "api.example.test",
                         "openai_model": "custom-model",
                         "openai_api_key": "secret-value",
-                    }
+                    },
+                    "remoteHosts": ["server1", "bad host", "server2", "server1"],
                 },
             )
             request = sr.read_json(saved["request_path"])
-            self.assertEqual(request["backend_config"]["openai_base_url"], "https://api.example.test/v1")
+            self.assertEqual(request["backend_config"]["openai_base_url"], "http://api.example.test/v1")
             self.assertEqual(request["backend_config"]["openai_model"], "custom-model")
             self.assertEqual(request["backend_config"]["openai_api_key"], "[not stored]")
+            self.assertEqual(request["remote_hosts"], ["server1", "server2"])
             self.assertNotIn("secret-value", json.dumps(request))
 
     def test_quickstart_mentions_review_first_and_safety(self):
         zh = sr.skill_quickstart_text("zh")
         en = sr.skill_quickstart_text("en")
         self.assertIn("先审核、后应用", zh)
-        self.assertIn("生成审核页不会改名", zh)
+        self.assertIn("首次打开网页不会生成或改名", zh)
+        self.assertIn("bootstrap-review", zh)
         self.assertIn("review first, apply later", en)
         self.assertIn("agent-review", en)
+
+    def test_bootstrap_review_preserves_local_threads_without_generating(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            p = sr.paths(home)
+            sr.ensure_dirs(p)
+            local_json = Path(tmp) / "local_threads.json"
+            sr.write_json(local_json, {"threads": [{"id": "abc", "title": "Qwen ASR"}]})
+            args = type(
+                "Args",
+                (),
+                {
+                    "codex_home": str(home),
+                    "local_json": str(local_json),
+                    "cache_days": 60,
+                    "keep_backups": 20,
+                },
+            )
+            sr.run_bootstrap_review(args)
+            proposals = sr.read_json(p["current"] / "proposals.json")
+            status = sr.read_json(p["current"] / "start_review_status.json")
+            saved_threads = sr.read_json(p["current"] / "local_threads.json")
+            self.assertEqual(proposals["backend_used"], "waiting_for_start")
+            self.assertEqual(proposals["count"], 0)
+            self.assertEqual(status["state"], "ready_for_user_config")
+            self.assertEqual(saved_threads["threads"][0]["id"], "abc")
+            self.assertTrue((p["current"] / "review.html").exists())
 
     def test_clean_snippet_redacts_chinese_password_tokens(self):
         text = sr.clean_snippet("sudo 密码 li3.141592li，密码告诉你是 li3secret")
@@ -297,6 +356,133 @@ class SessionRenamerTests(unittest.TestCase):
             self.assertTrue((p["current"] / "review.html").exists())
             self.assertTrue((p["current"] / "agent_review_commands.md").exists())
             self.assertIn("agent-review", (p["current"] / "agent_review_commands.md").read_text(encoding="utf-8"))
+
+    def test_agent_review_codex_ignores_cache_and_writes_subagent_prompt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            p = sr.paths(home)
+            sr.ensure_dirs(p)
+            local_json = p["current"] / "local_threads.json"
+            request_json = p["current"] / "start_review_request.json"
+            local_data = {
+                "threads": [
+                    {
+                        "id": "abc",
+                        "title": "Qwen ASR",
+                        "preview": "排查 Qwen ASR 配置",
+                    }
+                ]
+            }
+            sr.write_json(local_json, local_data)
+            sr.write_json(request_json, {"backend_config": {"backend": "codex"}})
+            session = sr.extract_threads(local_data, "local", "codex_app")[0]
+            cached = {
+                "threadId": "abc",
+                "host": "local",
+                "oldTitle": "Qwen ASR",
+                "newTitle": "🎙️ Qwen ASR",
+                "reason": "cached codex proposal",
+            }
+            cache = sr.load_cache(p["cache"])
+            cache["entries"][sr.cache_key(session, "subagent")] = {"created_at": sr.iso_now(), "proposal": cached}
+            sr.write_json(p["cache"], cache)
+            args = type(
+                "Args",
+                (),
+                {
+                    "codex_home": str(home),
+                    "request": str(request_json),
+                    "local_json": str(local_json),
+                    "backend": None,
+                    "subagent_json": None,
+                    "remote_index": None,
+                    "ssh_host": None,
+                    "vllm_base_url": None,
+                    "vllm_api_key": None,
+                    "model": None,
+                    "timeout": 30,
+                    "batch_size": 1,
+                    "port": 8765,
+                    "cache_days": 60,
+                    "keep_backups": 20,
+                },
+            )
+            sr.run_agent_review(args)
+            status = sr.read_json(p["current"] / "agent_review_status.json")
+            proposals = sr.read_json(p["current"] / "proposals.json")
+            manifest = sr.read_json(p["current"] / "subagent_manifest.json")
+            self.assertEqual(status["state"], "needs_subagent")
+            self.assertEqual(proposals["backend_used"], "subagent_prompt")
+            self.assertEqual(proposals["cache_hits"], 0)
+            self.assertTrue((p["current"] / "subagent_prompt.txt").exists())
+            self.assertTrue((p["current"] / "subagent_prompts" / "chunk-001.prompt.txt").exists())
+            self.assertEqual(manifest["chunk_count"], 1)
+            self.assertEqual(status["chunk_count"], 1)
+            self.assertIn("subagent_prompt.txt", status["prompt_path"])
+
+    def test_subagent_handoff_chunks_and_merge_reports_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            p = sr.paths(home)
+            sr.ensure_dirs(p)
+            sessions = [
+                {"threadId": "a", "host": "local", "title": "查看项目"},
+                {"threadId": "b", "host": "local", "title": "Qwen ASR"},
+                {"threadId": "c", "host": "server1", "title": "SomeAI 服务排查"},
+            ]
+            sr.write_json(p["current"] / "sessions.json", {"sessions": sessions})
+            manifest = sr.write_subagent_handoff(p["current"], sessions, chunk_size=2)
+            self.assertEqual(manifest["chunk_count"], 2)
+            result_path = Path(manifest["chunks"][0]["result_path"])
+            sr.write_json(result_path, {"renames": [{"id": "a", "new_title": "🧩 查看项目上下文", "reason": "ok"}, {"id": "bad", "new_title": "🧩 Bad", "reason": "bad"}]})
+            report = sr.merge_subagent_result_files(
+                p["current"] / "sessions.json",
+                p["current"] / "subagent_proposals.json",
+                manifest_path=p["current"] / "subagent_manifest.json",
+            )
+            merged = sr.read_json(p["current"] / "subagent_proposals.json")
+            self.assertEqual(report["rename_count"], 1)
+            self.assertEqual(report["missing_count"], 2)
+            self.assertEqual(report["invalid_id_count"], 1)
+            self.assertEqual(len(merged["renames"]), 1)
+            self.assertTrue((p["current"] / "subagent_missing_prompt.txt").exists())
+
+    def test_subagent_json_missing_ids_get_fallback_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            p = sr.paths(home)
+            sr.ensure_dirs(p)
+            sessions = [
+                {"threadId": "a", "host": "local", "title": "Qwen ASR", "fingerprint": "fa"},
+                {"threadId": "b", "host": "local", "title": "查看项目", "fingerprint": "fb"},
+            ]
+            sr.write_json(p["current"] / "sessions.json", {"sessions": sessions})
+            subagent_json = p["current"] / "partial_subagent.json"
+            sr.write_json(subagent_json, {"renames": [{"id": "a", "new_title": "🎙️ Qwen ASR 配置", "reason": "fresh"}]})
+            args = type(
+                "Args",
+                (),
+                {
+                    "codex_home": str(home),
+                    "input": None,
+                    "output": None,
+                    "backend": "subagent",
+                    "vllm_base_url": sr.DEFAULT_VLLM_BASE_URL,
+                    "vllm_api_key": sr.DEFAULT_VLLM_API_KEY,
+                    "model": None,
+                    "timeout": 30,
+                    "batch_size": 1,
+                    "subagent_json": str(subagent_json),
+                    "force_refresh": True,
+                    "subagent_chunk_size": 25,
+                },
+            )
+            sr.run_propose(args)
+            proposals = sr.read_json(p["current"] / "proposals.json")["proposals"]
+            self.assertEqual(len(proposals), 2)
+            self.assertEqual({item["threadId"] for item in proposals}, {"a", "b"})
+            fallback = next(item for item in proposals if item["threadId"] == "b")
+            self.assertEqual(fallback["status"], "fallback_missing_subagent")
 
     def test_subagent_json_bypasses_stale_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -378,6 +564,7 @@ class SessionRenamerTests(unittest.TestCase):
             self.assertIn("<\\/script>", html)
             self.assertIn('id="startReview"', html)
             self.assertIn("buildStartReviewPrompt", html)
+            self.assertIn("buildCodexSubagentPrompt", html)
             self.assertIn('id="editAssistantPrompt"', html)
             self.assertIn('id="resetAssistantPrompt"', html)
             self.assertIn("syncAssistantPromptLanguage", html)
@@ -386,6 +573,9 @@ class SessionRenamerTests(unittest.TestCase):
             self.assertNotIn('list="codexModelOptions"', html)
             self.assertIn('value="unavailable"', html)
             self.assertIn("isUnavailableSkipped", html)
+            self.assertIn(str(p["current"]).replace("\\", "\\\\"), html)
+            self.assertIn("desktop_apply_result.json", html)
+            self.assertNotIn("C:\\Users\\davidli", html)
 
 
 if __name__ == "__main__":

@@ -16,11 +16,11 @@ Whenever this skill is invoked, first give the user a short explanation of the w
 ```text
 我会按“先审核、后应用”的方式处理 Codex 会话改名：
 1. 先备份并清理本 skill 上一次生成的临时文件，不碰全局会话数据。
-2. 拉取当前 Codex Desktop 可见会话，读取少量脱敏上下文来生成标题建议。
-3. 生成/刷新本地审核页，你可以在网页里批准、拒绝或手动编辑标题。
-4. 你提交审核后，我才会读取批准结果，并通过 Codex 官方 thread title 工具应用改名。
+2. 先拉取当前 Codex Desktop 可见会话并打开本地网页，让你配置 OpenAI/vLLM 或 Codex 子agent。
+3. 你在网页点击“开始审核”后，才读取少量脱敏上下文并生成标题建议。
+4. 你审核并提交后，我才会读取批准结果，并通过 Codex 官方 thread title 工具应用改名。
 
-安全边界：生成审核页不会改名；网页不能直接调用 Codex 改名工具；真正应用前会再次以批准结果为准。
+安全边界：首次打开网页不会生成或改名；网页不能直接调用 Codex 改名工具；真正应用前会再次以批准结果为准。
 ```
 
 If the user asks for commands or wants to run it manually, point them to:
@@ -37,9 +37,15 @@ Prefer `codex_app.set_thread_title` for local actual renames. For remote-host si
 
 ### Token-Saving Fast Path
 
-For a web-requested fresh review, prefer the persisted runbook and `agent-review` command instead of retyping the full workflow.
+For the first invocation, open the configuration page first. Do not run title proposal generation before the user chooses a backend and clicks Start review.
 
 - Runbook: `runbooks/start-review-from-web.md`
+- First-page entry after saving `codex_app.list_threads` output:
+
+```powershell
+python <skill-dir>/scripts/session_renamer.py bootstrap-review --local-json ~/.codex/tmp/session-renamer/current/local_threads.json
+```
+
 - Scriptable workflow entry:
 
 ```powershell
@@ -52,20 +58,24 @@ python <skill-dir>/scripts/session_renamer.py agent-review --local-json ~/.codex
 powershell -ExecutionPolicy Bypass -File <skill-dir>/scripts/restart_review_server.ps1 -Port 8765
 ```
 
-`agent-review` runs maintenance, restores the web request and Desktop thread snapshot, discovers sessions, proposes titles, renders `review.html`, and writes `agent_review_commands.md`. It cannot call Codex Desktop tools itself, so the agent still must call `codex_app.list_threads` first and save the result as `local_threads.json`. If the selected backend is Codex subagent and no `--subagent-json` is supplied, it writes `subagent_prompt.txt` and `agent_review_status.json` with the exact next command.
+`bootstrap-review` runs maintenance, preserves the Desktop thread snapshot, renders a configuration-first `review.html`, and waits for the user to click Start review. The served page can then run OpenAI/vLLM proposal generation directly because `local_threads.json` is already present. If the selected backend is Codex subagent, the page/server writes a chunked handoff (`subagent_prompt.txt`, `subagent_manifest.json`, `subagent_prompts/`, `subagent_results/`) and `agent_review_status.json`, then shows a copyable prompt for the Codex agent with the manifest path and rerun command; the Codex agent must still spawn the subagents because the browser page cannot call Codex model tools directly.
+
+`agent-review` is still the scriptable fallback for a web-requested fresh review. It runs maintenance, restores the web request and Desktop thread snapshot, discovers sessions, proposes titles, renders `review.html`, and writes `agent_review_commands.md`. It cannot call Codex Desktop tools itself, so the agent still must call `codex_app.list_threads` first and save the result as `local_threads.json`. If the selected backend is Codex subagent and no `--subagent-json` is supplied, it writes chunked subagent prompts and `agent_review_status.json` with the exact next command.
 
 1. Locate thread tools.
    - If `codex_app.list_threads` and `codex_app.set_thread_title` are unavailable, search tools for `list_threads set_thread_title Codex thread title rename session`.
 
-2. Run maintenance once at the beginning.
+2. On first activation, collect local sessions, render the configuration page, start the server, and open it in the browser.
 
 ```powershell
-python <skill-dir>/scripts/session_renamer.py maintenance
+python <skill-dir>/scripts/session_renamer.py bootstrap-review --local-json ~/.codex/tmp/session-renamer/current/local_threads.json
+powershell -ExecutionPolicy Bypass -File <skill-dir>/scripts/restart_review_server.ps1 -Port 8765
 ```
 
    - This backs up the previous active run from `~/.codex/tmp/session-renamer/current`.
-   - It cleans only `~/.codex/tmp/session-renamer/current`.
-   - It prunes only this skill's cache/backups under `~/.codex/cache/session-renamer`.
+   - It preserves the freshly saved `local_threads.json`.
+   - It renders the page without generating proposals.
+   - Open `http://127.0.0.1:8765/` in the in-app Browser.
 
 3. Collect sessions.
    - For local sessions, call `codex_app.list_threads` with `limit: 50`; write the tool JSON to a temporary file if using the script.
@@ -86,15 +96,19 @@ python <skill-dir>/scripts/session_renamer.py discover --local-json local_thread
    - For `--ssh-host`, enrichment also searches remote `~/.codex/sessions`, `~/.codex/archived_sessions`, and `.jsonl.bak-*` transcript files read-only.
    - It skips environment/app/tool wrapper messages and redacts obvious secret-like values before writing `contextSnippet`.
 
-4. Choose proposal backend.
+4. Let the user choose proposal backend in the web page, then click Start review.
    - Default: `auto`.
    - `auto`: try local vLLM first; if it fails, create a subagent prompt and heuristic fallback proposals.
    - `vllm`: use an OpenAI-compatible endpoint such as a local vLLM server; by default this script points at `http://127.0.0.1:8000/v1`, and users can override it with `SESSION_RENAMER_OPENAI_BASE_URL`, `--vllm-base-url`, or the review page model settings.
-   - `subagent`: write `subagent_prompt.txt`; spawn `gpt-5.3-codex-spark` if available, otherwise `gpt-5.4-mini`; then validate its JSON with `--subagent-json`.
+   - `subagent`: write chunked prompt files; spawn `gpt-5.3-codex-spark` if available, otherwise `gpt-5.4-mini`; merge and validate JSON with `merge-subagent`, then finish with `--subagent-json`.
    - In the review page's Advanced tools > Models section, users choose one active proposal backend: `OpenAI API` or `Codex subagent`. The inactive backend's fields are disabled and greyed out.
-   - `OpenAI API` enables the OpenAI-compatible Base URL, model id, and API key used by per-item regeneration. Leaving the model blank auto-detects the first `/v1/models` result. The API key is only kept in the browser page memory and is not persisted to `localStorage`.
+   - `OpenAI API` enables the OpenAI-compatible Base URL, model id, and API key used by per-item regeneration. Leaving the model blank auto-detects the first `/v1/models` result. Base URLs are normalized automatically, so `host:port` and `http://host:port` become `http://host:port/v1`. The API key is only kept in the browser page memory and is not persisted to `localStorage`.
    - `Codex subagent` enables real dropdowns for the preferred model and fallback model. Known choices include `gpt-5.3-codex-spark`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5.4`, and `gpt-5.5`; choose `Custom...` to type a future Codex model id, which is passed through if it is a safe model-name string.
    - `heuristic`: deterministic local keyword/emoji proposals for tests or fallback.
+
+   In server mode, Start review posts the selected backend configuration to the local server:
+   - OpenAI API/vLLM: if `local_threads.json` exists, the server runs discovery, calls the OpenAI-compatible endpoint, renders the new review page, and the browser refreshes.
+   - Codex subagent: the server writes `subagent_prompt.txt`, `subagent_manifest.json`, chunk prompt files, and `agent_review_status.json`, and the page shows a copyable Codex-agent prompt with the exact next step. This web-triggered Codex path prepares a fresh subagent handoff even when older cached proposals exist. The Codex agent then spawns subagents per chunk, runs `merge-subagent`, and reruns `agent-review --subagent-json`.
 
 ```powershell
 python <skill-dir>/scripts/session_renamer.py propose --backend auto
@@ -189,16 +203,24 @@ python <skill-dir>/scripts/session_renamer.py package
 When the user chooses subagent proposals:
 
 1. Run `propose --backend subagent`.
-2. Read `~/.codex/tmp/session-renamer/current/subagent_prompt.txt`.
-3. Spawn a subagent with model `gpt-5.3-codex-spark`; fallback to `gpt-5.4-mini`.
+2. Read `~/.codex/tmp/session-renamer/current/subagent_prompt.txt` and `subagent_manifest.json`.
+3. Spawn one subagent per `chunks[]` entry with model `gpt-5.3-codex-spark`; fallback to `gpt-5.4-mini`.
    - If the review page wrote custom `preferred_model` and `fallback_model` values in `subagent_requests/*.json`, use those values instead.
-4. Require the subagent to return only JSON:
+4. Require each subagent to return only JSON and save it to that chunk's `result_path`:
 
 ```json
 {"renames":[{"id":"thread-id","new_title":"🎙️ Qwen ASR","reason":"short reason"}]}
 ```
 
-5. Save that JSON as `subagent_proposals.json`.
+5. Merge chunk results:
+
+```powershell
+python <skill-dir>/scripts/session_renamer.py merge-subagent
+```
+
+   - The merger ignores unknown/malformed ids, reports missing ids in `subagent_merge_report.json`, and writes `subagent_missing_prompt.txt` if a small follow-up chunk is needed.
+   - If the final `--subagent-json` still misses rows, `agent-review` keeps the review page complete by adding local fallback proposals for missing sessions.
+
 6. Run:
 
 ```powershell

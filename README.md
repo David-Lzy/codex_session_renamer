@@ -10,7 +10,7 @@ Review-first Codex session title organizer. It proposes clearer titles with emoj
 - Bilingual Chinese/English UI, light/dark mode, manual title edits.
 - Proposal backends:
   - OpenAI-compatible API such as local vLLM.
-  - Codex subagent handoff.
+  - Codex subagent handoff with a copyable next-step prompt in the review page.
   - Local heuristic fallback.
 - Local cache and run maintenance to avoid repeated model calls.
 - Safe apply flow through `codex_app.set_thread_title`.
@@ -59,6 +59,13 @@ Print the workflow summary:
 
 ```bash
 python scripts/session_renamer.py quickstart
+```
+
+Render the first-run configuration page after the Codex agent saves
+`local_threads.json`:
+
+```bash
+python scripts/session_renamer.py bootstrap-review --local-json ~/.codex/tmp/session-renamer/current/local_threads.json
 ```
 
 Start the review server after a review page has been generated:
@@ -110,12 +117,40 @@ Or pass CLI options:
 python scripts/session_renamer.py propose --backend vllm --vllm-base-url http://your-vllm-host:8000/v1
 ```
 
+The base URL is normalized automatically. Values such as `your-vllm-host:8000`
+or `http://your-vllm-host:8000` are expanded to
+`http://your-vllm-host:8000/v1`.
+
+## Codex Backend Handoff
+
+When the review page is served locally and `Codex subagent` is selected, clicking
+`Start review` writes a token-saving chunked handoff:
+
+- `subagent_prompt.txt`: short instructions for the Codex agent.
+- `subagent_manifest.json`: prompt chunks and expected result paths.
+- `subagent_prompts/chunk-*.prompt.txt`: small subagent prompts, 25 sessions by default.
+- `subagent_results/`: where each JSON-only chunk result should be saved.
+
+After chunk results are present, merge them:
+
+```bash
+python scripts/session_renamer.py merge-subagent
+```
+
+`merge-subagent` writes `subagent_proposals.json`, ignores unknown or malformed
+ids, reports missing ids, and creates `subagent_missing_prompt.txt` when another
+small follow-up run is needed. If a final `--subagent-json` still misses rows,
+`agent-review` keeps the review complete by adding local fallback proposals for
+missing sessions.
+
 ## Commands
 
 ```bash
 python scripts/session_renamer.py maintenance
+python scripts/session_renamer.py bootstrap-review --local-json local_threads.json
 python scripts/session_renamer.py discover --local-json local_threads.json --enrich-transcripts
 python scripts/session_renamer.py propose --backend auto
+python scripts/session_renamer.py merge-subagent
 python scripts/session_renamer.py render-review
 python scripts/session_renamer.py serve-review --port 8765
 python scripts/session_renamer.py prepare-apply
