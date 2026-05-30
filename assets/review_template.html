@@ -1493,6 +1493,83 @@
       ].join("\n");
     }
 
+    function compactStartReviewPrompt(options = {}) {
+      const requestPath = optionPath(options, "requestPath", "request_path", "start_review_request", "start_review_request.json");
+      const backend = options.backend || options.backend_config?.backend || "openai";
+      const remoteHosts = options.remote_hosts || options.remoteHosts || [];
+      const remoteText = Array.isArray(remoteHosts) && remoteHosts.length ? remoteHosts.join(", ") : "-";
+      const serverUrl = reviewServerUrl(options);
+      if (currentLang === "en") {
+        return [
+          "Run codex-session-emoji start-review.",
+          `Request: ${requestPath}`,
+          `Backend: ${backend}; remote hosts: ${remoteText}.`,
+          `Do not apply renames. Generate/refresh the review page at ${serverUrl}.`
+        ].join("\n");
+      }
+      return [
+        "执行 codex-session-emoji start-review。",
+        `请求文件：${requestPath}`,
+        `后端：${backend}；远程 host：${remoteText}。`,
+        `不要应用改名，只生成/刷新审核页：${serverUrl}。`
+      ].join("\n");
+    }
+
+    function compactCodexSubagentPrompt(options = {}) {
+      const requestPath = optionPath(options, "requestPath", "request_path", "start_review_request", "start_review_request.json");
+      const promptPath = optionPath(options, "promptPath", "prompt_path", "subagent_prompt", "subagent_prompt.txt");
+      const manifestPath = firstText(options.manifestPath, options.manifest_path, pathFromPayload("subagent_manifest", "subagent_manifest.json"));
+      const chunkCount = options.chunkCount || options.chunk_count || "";
+      const nextCommand = options.nextCommand || options.next_command || "";
+      const commandLine = nextCommand ? `\n${nextCommand}` : "";
+      if (currentLang === "en") {
+        return [
+          "Run codex-session-emoji codex-subagent.",
+          `Request: ${requestPath}`,
+          `Prompt: ${promptPath}`,
+          manifestPath ? `Manifest: ${manifestPath}` : "",
+          chunkCount ? `Chunks: ${chunkCount}.` : "",
+          nextCommand ? `Finish with:${commandLine}` : "After merging, rerun agent-review with subagent_proposals.json.",
+          "Do not apply renames."
+        ].filter(Boolean).join("\n");
+      }
+      return [
+        "执行 codex-session-emoji codex-subagent。",
+        `请求文件：${requestPath}`,
+        `提示词：${promptPath}`,
+        manifestPath ? `清单：${manifestPath}` : "",
+        chunkCount ? `分块数：${chunkCount}。` : "",
+        nextCommand ? `完成后运行：${commandLine}` : "合并后用 subagent_proposals.json 重跑 agent-review。",
+        "不要应用改名。"
+      ].filter(Boolean).join("\n");
+    }
+
+    function compactDesktopApplyPrompt(options = {}) {
+      const requestPath = optionPath(options, "requestPath", "request_path", "desktop_apply_request", "desktop_apply_request.json");
+      const resultPath = optionPath(options, "resultPath", "result_path", "desktop_apply_result", "desktop_apply_result.json");
+      const count = options.count ?? options.apply_count ?? options.desktop_apply_count ?? "";
+      const skipped = options.skip ?? options.skip_count ?? "";
+      const hosts = options.hosts || hostSummaryText(options.countsByHost || options.desktop_counts_by_host);
+      if (currentLang === "en") {
+        return [
+          "Run codex-session-emoji apply-approved.",
+          `Request: ${requestPath}`,
+          `Result: ${resultPath}`,
+          count !== "" ? `Requested apply items: ${count}; submit-time skipped items: ${skipped || 0}; hosts: ${hosts || "-"}.` : ""
+        ].filter(Boolean).join("\n");
+      }
+      return [
+        "执行 codex-session-emoji apply-approved。",
+        `请求文件：${requestPath}`,
+        `结果文件：${resultPath}`,
+        count !== "" ? `本次请求可应用 ${count} 条；提交时跳过 ${skipped || 0} 条；host 汇总：${hosts || "-"}。` : ""
+      ].filter(Boolean).join("\n");
+    }
+
+    buildStartReviewPrompt = compactStartReviewPrompt;
+    buildCodexSubagentPrompt = compactCodexSubagentPrompt;
+    buildDesktopApplyPrompt = compactDesktopApplyPrompt;
+
     function contextText(item) {
       const context = item.context || {};
       const lines = [];

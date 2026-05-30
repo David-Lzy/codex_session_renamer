@@ -168,7 +168,7 @@ def assert_under(path: Path, parent: Path) -> Path:
 def read_json(path: Path, default: Any | None = None) -> Any:
     if not path.exists():
         return default
-    with path.open("r", encoding="utf-8") as fh:
+    with path.open("r", encoding="utf-8-sig") as fh:
         return json.load(fh)
 
 
@@ -1709,17 +1709,8 @@ def build_desktop_apply_request(apply_path: Path, plan: dict[str, Any]) -> dict[
         "apply_count": len(items),
         "counts_by_host": counts_by_host,
         "items": items,
-        "why": (
-            "The current Codex Desktop sidebar updates live only when the Desktop main process "
-            "calls set_thread_title and broadcasts thread-title-updated. The review web server "
-            "cannot call that tool directly, so it prepares this request for the Codex agent."
-        ),
-        "agent_instructions": [
-            "Read desktop_apply_request.json.",
-            "For each pending item, call codex_app.set_thread_title with threadId and newTitle.",
-            "Treat 'No AppServerManager registered' as a nonfatal skip; remote state/index fallbacks may still persist the title.",
-            "Write desktop_apply_result.json with applied, failed, skipped, and created_at so the review page can show status.",
-        ],
+        "agent_command": "codex-session-emoji apply-approved",
+        "runbook": "runbooks/apply-approved.md",
     }
 
 
@@ -1765,14 +1756,8 @@ def build_start_review_request(current: Path, body: dict[str, Any]) -> dict[str,
             "proposals.json",
             "review.html",
         ],
-        "agent_instructions": [
-            "Do not apply renames in this step.",
-            "Run maintenance once before generating a new review.",
-            "Use codex_app.list_threads to collect the current Desktop-visible local threads and save them as local_threads.json.",
-            "Optionally refresh SSH remote session_index snapshots if remote hosts should be included.",
-            "Run discover with transcript enrichment, then propose with the selected backend, then render-review.",
-            "Restart serve-review on the same port if needed so the browser shows the fresh review page.",
-        ],
+        "agent_command": "codex-session-emoji start-review",
+        "runbook": "runbooks/start-review-from-web.md",
     }
     return request
 
@@ -1880,26 +1865,15 @@ def write_agent_review_commands(
 
 ## Codex Subagent Handoff
 
-If `agent_review_status.json` says `needs_subagent`, read:
-
-```powershell
-Get-Content -Raw {ps_quote(current / "subagent_prompt.txt")}
-```
-
-This is a token-saving chunked handoff. Read the manifest:
+If `agent_review_status.json` says `needs_subagent`, read `runbooks/codex-subagent.md` and use:
 
 ```text
-{current / "subagent_manifest.json"}
+prompt:   {current / "subagent_prompt.txt"}
+manifest: {current / "subagent_manifest.json"}
+output:   {current / "subagent_proposals.json"}
 ```
 
-For each entry in `chunks[]`, spawn the configured Codex subagent with `prompt_path`.
-Save each JSON-only reply to that chunk's `result_path`, then merge:
-
-```powershell
-python {ps_quote(script)} merge-subagent --sessions {ps_quote(current / "sessions.json")} --manifest {ps_quote(current / "subagent_manifest.json")} --output {ps_quote(current / "subagent_proposals.json")}
-```
-
-Then finish the review generation:
+Finish after merge:
 
 ```powershell
 python {ps_quote(script)} agent-review --local-json {ps_quote(local_json)} --request {ps_quote(request_path)} --backend subagent --subagent-json {ps_quote(current / "subagent_proposals.json")} --port {port}
@@ -1911,11 +1885,11 @@ Generated: {iso_now()}
 State: `{state}`
 Backend: `{backend}`
 
-This file is the token-saving runbook for a web-requested review cycle. The web page cannot call Codex Desktop tools directly, so the only manual/tool boundary is the `codex_app.list_threads` call and, for Codex backend proposals, the subagent call.
+Short path for a web-requested review cycle. For full details, read `runbooks/start-review-from-web.md`.
 
 ## Desktop Thread Snapshot
 
-Call `codex_app.list_threads` for the currently visible local Desktop sessions. Use the highest accepted limit; if the tool rejects it, retry with a smaller value such as `10`. Save the tool result as:
+Call `codex_app.list_threads` and save the tool result as:
 
 ```text
 {local_json}
@@ -1936,7 +1910,7 @@ powershell -ExecutionPolicy Bypass -File {ps_quote(restart)} -Port {port}
 
 ## Safety Boundary
 
-This workflow only prepares `review.html`. It does not apply renames. Applying approved titles still requires the Codex agent to read `desktop_apply_request.json` and call `codex_app.set_thread_title`.
+This only prepares `review.html`. Applying approved titles is a separate `desktop_apply_request.json` step.
 """
     output = current / "agent_review_commands.md"
     output.write_text(content, encoding="utf-8", newline="\n")

@@ -13,6 +13,62 @@ import session_renamer as sr  # noqa: E402
 
 
 class SessionRenamerTests(unittest.TestCase):
+    def test_read_json_accepts_utf8_bom(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "local_threads.json"
+            path.write_bytes(b"\xef\xbb\xbf" + json.dumps({"threads": [{"id": "abc"}]}).encode("utf-8"))
+            self.assertEqual(sr.read_json(path)["threads"][0]["id"], "abc")
+
+    def test_low_token_skill_doc_uses_on_demand_runbooks(self):
+        skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+        self.assertLess(len(skill), 7000)
+        self.assertIn("runbooks/apply-approved.md", skill)
+        self.assertIn("runbooks/codex-subagent.md", skill)
+        self.assertIn("runbooks/remote-fallbacks.md", skill)
+        self.assertIn("runbooks/troubleshooting.md", skill)
+        self.assertIn("runbooks/browser-usage.md", skill)
+        self.assertNotIn("apply-app-server --host", skill)
+        self.assertNotIn("subagent_manifest.json", skill)
+        self.assertNotIn("Open `http://127.0.0.1:8765/` in the in-app Browser", skill)
+
+    def test_on_demand_runbooks_exist(self):
+        expected = [
+            "apply-approved.md",
+            "codex-subagent.md",
+            "remote-fallbacks.md",
+            "troubleshooting.md",
+            "browser-usage.md",
+            "start-review-from-web.md",
+        ]
+        for name in expected:
+            with self.subTest(name=name):
+                path = SKILL_DIR / "runbooks" / name
+                self.assertTrue(path.exists(), name)
+                self.assertGreater(len(path.read_text(encoding="utf-8")), 200)
+
+    def test_apply_request_uses_compact_agent_command(self):
+        plan = {
+            "apply": [
+                {
+                    "threadId": "abc",
+                    "host": "local",
+                    "oldTitle": "Old",
+                    "newTitle": "🐍 New",
+                }
+            ]
+        }
+        request = sr.build_desktop_apply_request(Path("apply_plan.json"), plan)
+        self.assertEqual(request["agent_command"], "codex-session-emoji apply-approved")
+        self.assertEqual(request["runbook"], "runbooks/apply-approved.md")
+        self.assertNotIn("agent_instructions", request)
+        self.assertNotIn("why", request)
+
+    def test_start_review_request_uses_compact_agent_command(self):
+        request = sr.build_start_review_request(Path("current"), {"backendConfig": {"backend": "openai"}})
+        self.assertEqual(request["agent_command"], "codex-session-emoji start-review")
+        self.assertEqual(request["runbook"], "runbooks/start-review-from-web.md")
+        self.assertNotIn("agent_instructions", request)
+
     def test_normalize_openai_base_url_fills_common_missing_parts(self):
         cases = {
             "10.10.2.200:8002": "http://10.10.2.200:8002/v1",
@@ -565,6 +621,8 @@ class SessionRenamerTests(unittest.TestCase):
             self.assertIn('id="startReview"', html)
             self.assertIn("buildStartReviewPrompt", html)
             self.assertIn("buildCodexSubagentPrompt", html)
+            self.assertIn("Run codex-session-emoji start-review.", html)
+            self.assertIn("Run codex-session-emoji apply-approved.", html)
             self.assertIn('id="editAssistantPrompt"', html)
             self.assertIn('id="resetAssistantPrompt"', html)
             self.assertIn("syncAssistantPromptLanguage", html)
