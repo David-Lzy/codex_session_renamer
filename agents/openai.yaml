@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Session Emoji"
+  short_description: "Review and rename Codex sessions safely."
+  default_prompt: "Generate review-first Codex session rename proposals, render the approval HTML, and apply only approved changes."

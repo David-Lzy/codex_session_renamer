@@ -1,0 +1,2036 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex Session Rename Review / Codex 会话重命名审核</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101114;
+      --panel: #181b20;
+      --panel-2: #111419;
+      --muted: #a8adb7;
+      --text: #f4f5f7;
+      --line: #303640;
+      --accent: #43c7b7;
+      --accent-2: #78a6ff;
+      --warn: #f5b85f;
+      --danger: #ff746b;
+      --ok: #74d58c;
+      --shadow: rgba(0, 0, 0, 0.26);
+      --control: #242934;
+      --input: #0d1015;
+      --chip: #141820;
+      --context-bg: #0b0e13;
+      --primary-fg: #071311;
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-2: #f0f3f7;
+      --muted: #626b77;
+      --text: #171a1f;
+      --line: #d8dee7;
+      --accent: #087f72;
+      --accent-2: #255fc7;
+      --warn: #95621a;
+      --danger: #b23a31;
+      --ok: #1f7a3c;
+      --shadow: rgba(18, 28, 45, 0.08);
+      --control: #ffffff;
+      --input: #ffffff;
+      --chip: #ffffff;
+      --context-bg: #f8fafc;
+      --primary-fg: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+    header, main { max-width: 1240px; margin: 0 auto; padding: 22px; }
+    header { border-bottom: 1px solid var(--line); }
+    .header-top {
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    h1 { margin: 0 0 10px; font-size: 23px; font-weight: 680; letter-spacing: 0; }
+    .header-top h1 { margin: 0; }
+    .prefs {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button, input, select {
+      font: inherit;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: var(--control);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 8px 12px;
+      cursor: pointer;
+      min-height: 36px;
+    }
+    button.primary { background: var(--accent); color: var(--primary-fg); border-color: var(--accent); }
+    button.subtle { background: transparent; }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    button:hover:not(:disabled) { filter: brightness(1.08); }
+    input[type="text"], input[type="number"], input[type="password"], select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 8px 9px;
+      background: var(--input);
+      color: var(--text);
+      min-height: 36px;
+    }
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+    .meta, .toolbar, .filters {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .meta { color: var(--muted); font-size: 13px; }
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: var(--chip);
+    }
+    .toolbar { margin-bottom: 12px; }
+    .main-toolbar {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .tool-drawer {
+      margin: 0 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .tool-drawer > summary {
+      cursor: pointer;
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      user-select: none;
+    }
+    .tool-drawer-body {
+      display: grid;
+      gap: 10px;
+      padding: 0 12px 12px;
+    }
+    .tool-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .group-title {
+      min-width: 78px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .model-field {
+      display: grid;
+      gap: 4px;
+      min-width: 180px;
+      flex: 1 1 210px;
+    }
+    .model-field.compact { flex: 0 1 190px; }
+    .model-field.codex-model-field {
+      flex: 1 1 300px;
+      min-width: min(100%, 280px);
+    }
+    .model-field.custom-model-field {
+      flex: 1 1 240px;
+      min-width: min(100%, 220px);
+    }
+    .model-field.is-hidden {
+      display: none;
+    }
+    .model-field.is-disabled {
+      opacity: 0.46;
+    }
+    .model-field.is-disabled input,
+    .model-field.is-disabled select {
+      cursor: not-allowed;
+    }
+    .model-field span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .filters {
+      margin: 0 0 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .filters input { max-width: 360px; }
+    .summary {
+      margin: 0 0 14px;
+      padding: 12px 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .assistant-prompt {
+      margin: 0 0 14px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .assistant-prompt[hidden] { display: none; }
+    .assistant-prompt-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .assistant-prompt-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .assistant-prompt-title {
+      color: var(--text);
+      font-weight: 700;
+    }
+    .assistant-prompt textarea {
+      width: 100%;
+      min-height: 128px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px;
+      background: var(--input);
+      color: var(--text);
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
+    .assistant-prompt textarea[readonly] {
+      color: var(--muted);
+    }
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 8px 24px var(--shadow);
+      overflow: hidden;
+    }
+    .card-main {
+      display: grid;
+      grid-template-columns: 38px minmax(180px, 0.9fr) minmax(280px, 1.4fr) minmax(190px, 0.8fr);
+      gap: 12px;
+      padding: 14px;
+      align-items: start;
+    }
+    .use-cell {
+      display: flex;
+      justify-content: center;
+      padding-top: 5px;
+    }
+    .host {
+      color: var(--text);
+      font-weight: 680;
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+    .thread-id {
+      color: var(--muted);
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 0 0 5px;
+    }
+    .old-title {
+      color: var(--muted);
+      font-size: 15px;
+      word-break: break-word;
+      margin-bottom: 10px;
+    }
+    .proposed-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .reason {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+      word-break: break-word;
+    }
+    .status {
+      font-size: 13px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      display: inline-flex;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .state-cell {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .status.ok { color: var(--ok); border-color: rgba(116, 213, 140, 0.45); }
+    .status.bad { color: var(--danger); border-color: rgba(255, 116, 107, 0.45); }
+    .status.warn { color: var(--warn); border-color: rgba(245, 184, 95, 0.45); }
+    details {
+      border-top: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    summary {
+      cursor: pointer;
+      color: var(--muted);
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+    .advanced {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      padding: 0 14px 14px;
+    }
+    .advanced .wide { grid-column: span 2; }
+    .context-box {
+      grid-column: 1 / -1;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--context-bg);
+      color: var(--muted);
+      padding: 10px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 150px;
+      overflow: auto;
+    }
+    .advanced-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .regen-state {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .empty {
+      padding: 28px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    @media (max-width: 860px) {
+      header, main { padding: 16px; }
+      .card-main { grid-template-columns: 34px 1fr; }
+      .title-cell, .proposal-cell, .state-cell { grid-column: 2; }
+      .advanced { grid-template-columns: 1fr; }
+      .advanced .wide { grid-column: auto; }
+      .proposed-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <h1 id="pageTitle">Codex 会话重命名审核</h1>
+      <div class="prefs">
+        <button id="themeToggle" type="button"></button>
+        <button id="langToggle" type="button"></button>
+      </div>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+  <main>
+    <div class="toolbar main-toolbar">
+      <button id="startReview" class="primary">开始审核 / Start review</button>
+      <button id="approveAll">批准有效改名 / Approve valid changes</button>
+      <button id="rejectAll">全部拒绝 / Reject all</button>
+      <button id="submitApprovals" class="primary">提交审核结果 / Submit approvals</button>
+      <button id="checkDesktopStatus">检查桌面应用状态 / Check Desktop status</button>
+    </div>
+    <details class="tool-drawer">
+      <summary id="advancedToolsSummary">高级工具 / Advanced tools</summary>
+      <div class="tool-drawer-body">
+        <div class="tool-group">
+          <span class="group-title" id="exportToolsLabel">导出</span>
+          <button id="download">下载 approved.json / Download approved.json</button>
+          <button id="saveFile">保存 approved.json / Save approved.json</button>
+          <button id="prepareDesktopApply">生成桌面应用请求 / Prepare Desktop apply</button>
+        </div>
+        <div class="tool-group">
+          <span class="group-title" id="aiToolsLabel">AI 重写</span>
+          <button id="requestSubagent">请求子agent重生成已勾选 / Request subagent</button>
+          <button id="checkSubagentStatus">检查子agent结果 / Check subagent</button>
+        </div>
+        <div class="tool-group">
+          <span class="group-title" id="modelToolsLabel">模型</span>
+          <label class="model-field compact">
+            <span id="modelBackendLabel">Backend</span>
+            <select id="modelBackend">
+              <option value="openai">OpenAI API</option>
+              <option value="codex">Codex subagent</option>
+            </select>
+          </label>
+          <label class="model-field">
+            <span id="openaiBaseUrlLabel">OpenAI Base URL</span>
+            <input id="openaiBaseUrl" type="text" autocomplete="off">
+          </label>
+          <label class="model-field compact">
+            <span id="openaiModelLabel">OpenAI Model</span>
+            <input id="openaiModel" type="text" autocomplete="off">
+          </label>
+          <label class="model-field compact">
+            <span id="openaiApiKeyLabel">API Key</span>
+            <input id="openaiApiKey" type="password" autocomplete="off">
+          </label>
+          <label class="model-field codex-model-field">
+            <span id="codexModelLabel">Codex Model</span>
+            <select id="codexModel">
+              <option value="gpt-5.3-codex-spark">gpt-5.3-codex-spark</option>
+              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+              <option value="gpt-5.3-codex">gpt-5.3-codex</option>
+              <option value="gpt-5.4">gpt-5.4</option>
+              <option value="gpt-5.5">gpt-5.5</option>
+              <option value="__custom__">Custom...</option>
+            </select>
+          </label>
+          <label class="model-field custom-model-field is-hidden" id="codexModelCustomWrap">
+            <span id="codexModelCustomLabel">Custom Codex model</span>
+            <input id="codexModelCustom" type="text" autocomplete="off">
+          </label>
+          <label class="model-field codex-model-field">
+            <span id="codexFallbackModelLabel">Codex Fallback</span>
+            <select id="codexFallbackModel">
+              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+              <option value="gpt-5.3-codex-spark">gpt-5.3-codex-spark</option>
+              <option value="gpt-5.3-codex">gpt-5.3-codex</option>
+              <option value="gpt-5.4">gpt-5.4</option>
+              <option value="gpt-5.5">gpt-5.5</option>
+              <option value="__custom__">Custom...</option>
+            </select>
+          </label>
+          <label class="model-field custom-model-field is-hidden" id="codexFallbackCustomWrap">
+            <span id="codexFallbackCustomLabel">Custom fallback</span>
+            <input id="codexFallbackCustom" type="text" autocomplete="off">
+          </label>
+        </div>
+        <div class="tool-group">
+          <span class="group-title" id="fallbackToolsLabel">Fallback</span>
+          <button id="applyRemoteAppServer">应用远程改名 / Apply remote renames</button>
+          <button id="applyRemoteState">直接刷新远程状态 / Direct remote state</button>
+          <button id="applyRemoteIndex">应用远程索引 / Apply remote index</button>
+        </div>
+      </div>
+    </details>
+    <div class="summary" id="notice" aria-live="polite"></div>
+    <div class="summary" id="summary"></div>
+    <section id="assistantPromptPanel" class="assistant-prompt" hidden>
+      <div class="assistant-prompt-header">
+        <div class="assistant-prompt-title" id="assistantPromptTitle">给 Codex 的提示词</div>
+        <div class="assistant-prompt-actions">
+          <button id="editAssistantPrompt" type="button">编辑</button>
+          <button id="resetAssistantPrompt" type="button">初始化</button>
+          <button id="copyAssistantPrompt" type="button">复制</button>
+        </div>
+      </div>
+      <textarea id="assistantPromptText" readonly></textarea>
+    </section>
+    <div class="filters">
+      <input type="text" id="search" placeholder="搜索标题、主机或理由 / Search title, host, reason">
+      <select id="filter">
+        <option value="needsAction">待处理 / Needs action</option>
+        <option value="all">全部 / All</option>
+        <option value="applied">已应用 / Applied</option>
+        <option value="skippedApply">已跳过 / Skipped</option>
+        <option value="unavailable">旧批次/不可见 / Old batch</option>
+        <option value="approved">已批准 / Approved</option>
+        <option value="rejected">已拒绝 / Rejected</option>
+        <option value="invalid">无效 / Invalid</option>
+        <option value="changed">有变化 / Changed</option>
+      </select>
+    </div>
+    <div id="tableWrap"></div>
+  </main>
+  <script id="session-renamer-data" type="application/json">__SESSION_RENAMER_DATA__</script>
+  <script>
+    const payload = JSON.parse(document.getElementById("session-renamer-data").textContent);
+    const run = payload.proposal_run || {};
+    const serverMode = location.protocol === "http:" || location.protocol === "https:";
+    const proposals = (run.proposals || []).map((item) => {
+      return {
+        ...item,
+        approved: false,
+        edited: false,
+        reviewOptions: { length: "standard", style: "descriptive", custom_size: "", instruction: "" },
+        regenState: ""
+      };
+    });
+    const applyStatusByThread = new Map();
+    let desktopApply = { state: "unknown", applied: 0, failed: 0, skipped: 0 };
+    let assistantPromptText = "";
+    let assistantPromptSeed = null;
+    let assistantPromptEditable = false;
+    let assistantPromptEdited = false;
+    const modelConfig = {
+      backend: localStorage.getItem("sessionRenamer.modelBackend") || "openai",
+      openai_base_url: localStorage.getItem("sessionRenamer.openaiBaseUrl") || "http://127.0.0.1:8000/v1",
+      openai_model: localStorage.getItem("sessionRenamer.openaiModel") || "",
+      openai_api_key: "",
+      codex_model: localStorage.getItem("sessionRenamer.codexModel") || "gpt-5.3-codex-spark",
+      codex_fallback_model: localStorage.getItem("sessionRenamer.codexFallbackModel") || "gpt-5.4-mini"
+    };
+    const codexModelChoices = ["gpt-5.3-codex-spark", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.4", "gpt-5.5"];
+    const i18n = {
+      zh: {
+        title: "Codex 会话重命名审核",
+        themeLight: "白色模式",
+        themeDark: "暗黑模式",
+        switchToLight: "切换白色",
+        switchToDark: "切换暗黑",
+        switchToEn: "English",
+        switchToZh: "中文",
+        startReview: "开始审核",
+        approveAll: "批准有效改名",
+        rejectAll: "全部拒绝",
+        download: "下载 JSON",
+        saveFile: "保存 JSON",
+        submit: "提交，等我执行",
+        prepareDesktopApply: "重建应用请求",
+        checkDesktopStatus: "查看执行状态",
+        requestSubagent: "子agent重写已勾选",
+        checkSubagentStatus: "检查子agent结果",
+        applyRemoteAppServer: "远端 app-server",
+        applyRemoteState: "刷新状态库",
+        applyRemoteIndex: "写入索引",
+        advancedTools: "高级工具",
+        exportTools: "导出",
+        aiTools: "AI 重写",
+        modelTools: "模型",
+        modelBackend: "后端类型",
+        openaiBaseUrl: "OpenAI Base URL",
+        openaiModel: "OpenAI 模型",
+        openaiApiKey: "API Key",
+        codexModel: "Codex 模型",
+        codexFallbackModel: "Codex 备用",
+        customCodexModel: "自定义 Codex 模型",
+        customCodexFallback: "自定义备用模型",
+        openaiBaseUrlPlaceholder: "http://host:port/v1",
+        openaiModelPlaceholder: "留空则自动读取 /v1/models",
+        openaiApiKeyPlaceholder: "可选；只在本页临时使用",
+        customCodexModelPlaceholder: "例如 gpt-5.6-codex",
+        customCodexFallbackPlaceholder: "例如 gpt-5.4-mini",
+        openaiBackendHint: "当前使用 OpenAI API 兼容后端，Codex 子agent 模型已禁用。",
+        codexBackendHint: "当前使用 Codex 子agent，OpenAI API 设置已禁用。",
+        chooseCodexBackend: "请先在模型区选择 Codex 子agent 后端。",
+        openaiOnlyRegen: "单条重生成使用 OpenAI API 兼容后端；当前已选择 Codex 子agent。",
+        fallbackTools: "救急写入",
+        searchPlaceholder: "搜索标题、主机或理由",
+        filterNeedsAction: "未完成",
+        filterAll: "全部",
+        filterApplied: "已应用",
+        filterSkippedApply: "已跳过",
+        filterUnavailable: "旧批次/不可见",
+        filterApproved: "已批准",
+        filterRejected: "已拒绝",
+        filterInvalid: "无效",
+        filterChanged: "有变化",
+        metaCreated: "生成时间",
+        metaBackend: "后端",
+        metaCount: "数量",
+        metaCache: "缓存命中",
+        metaServer: "交互服务",
+        metaBackup: "备份",
+        on: "开启",
+        off: "未开启",
+        yes: "有",
+        none: "无",
+        noticeDefault: "主流程：审核标题，批准需要改的项，然后提交。提交后回到对话让我执行。",
+        startingReview: "正在创建新一轮审核请求...",
+        startReviewPrepared: "已创建开始审核请求。复制下面提示词给 Codex，我会拉取当前会话并生成新的审核页。",
+        startReviewFailed: "创建开始审核请求失败：{message}",
+        summary: "已批准 {approved} 项；有变化 {changed} 项；无效 {invalid} 项。单条重生成使用本地 vLLM。",
+        summaryApply: "执行状态：已应用 {applied}，跳过 {skipped}，失败 {failed}。",
+        summaryHidden: "当前自动隐藏已应用、无变化、未批准和旧批次不可见项。",
+        noMatching: "没有匹配项。",
+        currentTitle: "当前标题",
+        beforeTitle: "执行前标题",
+        standardTitle: "标准题词",
+        approve: "批准",
+        reject: "拒绝",
+        validChange: "有效改名",
+        noChange: "无变化",
+        invalid: "{reason}；无效",
+        appliedBadge: "已应用",
+        skippedBadge: "已跳过",
+        unavailableBadge: "旧批次/不可见",
+        failedBadge: "应用失败",
+        assistantPromptTitle: "给 Codex 的提示词",
+        editPrompt: "编辑提示词",
+        lockPrompt: "锁定提示词",
+        resetPrompt: "初始化默认",
+        copyPrompt: "复制",
+        copiedPrompt: "已复制",
+        copyPromptFailed: "复制失败，请手动选择文本。",
+        promptReset: "已按当前语言初始化提示词。",
+        advanced: "高级选项、上下文与单条重生成",
+        length: "长度",
+        customSize: "自定义长度",
+        style: "风格",
+        extra: "补充要求",
+        optionStandard: "标准",
+        optionShort: "短",
+        optionLong: "长",
+        optionCustom: "自定义",
+        styleDescriptive: "描述清楚",
+        styleTechnical: "技术对象",
+        styleAction: "动作用途",
+        styleChinese: "中文优先",
+        styleEnglish: "英文优先",
+        charsPlaceholder: "字数",
+        extraPlaceholder: "额外要求",
+        noContext: "暂无上下文摘要",
+        regenerate: "重新生成这一条",
+        generating: "生成中...",
+        regenerated: "已并入标准题词",
+        regenNotice: "已重新生成并并入标准题词，请确认后批准。",
+        regenFailed: "无法调用本地服务：{message}",
+        editedNotice: "题词已编辑，批准状态未自动改变。",
+        fileModeSubmit: "当前是 file 页面，请使用本地服务 http://127.0.0.1:8765/ 提交。",
+        submitting: "正在提交审核结果...",
+        submitSaved: "已写入 approved.json、apply_plan.json 和 desktop_apply_request.json：可应用 {apply} 条，跳过 {skip} 条。下一步需要 Codex Desktop 工具执行。",
+        submitFailed: "提交失败：{message}",
+        preparingDesktopApply: "正在生成桌面应用请求...",
+        desktopApplyPrepared: "已生成桌面应用请求 {count} 条，按 host 汇总：{hosts}。这一步需要 Codex agent 调用 set_thread_title 才会让当前侧栏立刻刷新。",
+        desktopApplyPrepareFailed: "生成桌面应用请求失败：{message}",
+        checkingDesktopStatus: "正在检查桌面应用状态...",
+        desktopStatusNone: "还没有桌面应用请求。",
+        desktopStatusPending: "桌面应用请求待执行：{count} 条。回到 Codex 对话让我执行该请求。",
+        desktopStatusCompleted: "桌面应用完成：成功 {applied} 条，失败 {failed} 条，跳过 {skipped} 条。",
+        desktopStatusFailed: "检查桌面应用状态失败：{message}",
+        autoHideAppliedNotice: "已自动隐藏 {count} 条已应用项目；当前只显示跳过或失败项。",
+        requestingSubagent: "正在创建 Codex 子agent 请求...",
+        subagentNoSelection: "请先勾选要交给子agent重生成的条目。",
+        subagentRequested: "已创建子agent请求 {count} 条：{requestId}。模型：{model}，备用：{fallback}。回到 Codex 对话后我可以调用子agent并写回结果。",
+        subagentRequestFailed: "创建子agent请求失败：{message}",
+        checkingSubagent: "正在检查子agent结果...",
+        subagentPending: "子agent请求仍在等待 Codex 执行：{requestId}。",
+        subagentMerged: "已合并子agent返回的 {count} 条题词，请重新审核。",
+        subagentStatusNone: "还没有子agent请求。",
+        subagentStatusFailed: "检查子agent结果失败：{message}",
+        applyingRemoteAppServer: "正在通过远端 Codex app-server 应用改名...",
+        remoteAppServerApplied: "远端 app-server fallback 已应用 {count} 条；失败 {failed} 个 host；跳过 {skip} 条。它不保证当前桌面侧栏收到实时广播。",
+        remoteAppServerFailed: "远端改名应用失败：{message}",
+        applyingRemoteState: "正在备份并刷新远程状态...",
+        remoteStateApplied: "远程状态已刷新 {count} 条；失败 {failed} 个 host；跳过 {skip} 条。",
+        remoteStateFailed: "远程状态刷新失败：{message}",
+        applyingRemote: "正在应用远程索引...",
+        remoteApplied: "远程索引已应用 {count} 条；失败 {failed} 个 host；跳过 {skip} 条。",
+        remoteApplyFailed: "远程索引应用失败：{message}",
+        approveAllNotice: "已批准 {count} 条有效改名。",
+        rejectAllNotice: "已全部取消批准。"
+      },
+      en: {
+        title: "Codex Session Rename Review",
+        themeLight: "Light mode",
+        themeDark: "Dark mode",
+        switchToLight: "Light",
+        switchToDark: "Dark",
+        switchToEn: "English",
+        switchToZh: "中文",
+        startReview: "Start review",
+        approveAll: "Approve valid changes",
+        rejectAll: "Reject all",
+        download: "Download JSON",
+        saveFile: "Save JSON",
+        submit: "Submit for Codex",
+        prepareDesktopApply: "Rebuild apply request",
+        checkDesktopStatus: "Check apply status",
+        requestSubagent: "Subagent rewrite checked",
+        checkSubagentStatus: "Check subagent result",
+        applyRemoteAppServer: "Remote app-server",
+        applyRemoteState: "Refresh state DB",
+        applyRemoteIndex: "Write index",
+        advancedTools: "Advanced tools",
+        exportTools: "Export",
+        aiTools: "AI rewrite",
+        modelTools: "Models",
+        modelBackend: "Backend",
+        openaiBaseUrl: "OpenAI Base URL",
+        openaiModel: "OpenAI model",
+        openaiApiKey: "API Key",
+        codexModel: "Codex model",
+        codexFallbackModel: "Codex fallback",
+        customCodexModel: "Custom Codex model",
+        customCodexFallback: "Custom fallback",
+        openaiBaseUrlPlaceholder: "http://host:port/v1",
+        openaiModelPlaceholder: "Blank uses /v1/models",
+        openaiApiKeyPlaceholder: "Optional; temporary on this page",
+        customCodexModelPlaceholder: "For example gpt-5.6-codex",
+        customCodexFallbackPlaceholder: "For example gpt-5.4-mini",
+        openaiBackendHint: "OpenAI-compatible backend is active; Codex subagent model fields are disabled.",
+        codexBackendHint: "Codex subagent backend is active; OpenAI API settings are disabled.",
+        chooseCodexBackend: "Choose the Codex subagent backend in Models first.",
+        openaiOnlyRegen: "Per-item regenerate uses the OpenAI-compatible backend; Codex subagent is selected.",
+        fallbackTools: "Fallback writes",
+        searchPlaceholder: "Search title, host, or reason",
+        filterNeedsAction: "Unfinished",
+        filterAll: "All",
+        filterApplied: "Applied",
+        filterSkippedApply: "Skipped",
+        filterUnavailable: "Old batch / unavailable",
+        filterApproved: "Approved",
+        filterRejected: "Rejected",
+        filterInvalid: "Invalid",
+        filterChanged: "Changed",
+        metaCreated: "Created",
+        metaBackend: "Backend",
+        metaCount: "Count",
+        metaCache: "Cache hits",
+        metaServer: "Interactive server",
+        metaBackup: "Backup",
+        on: "on",
+        off: "off",
+        yes: "yes",
+        none: "none",
+        noticeDefault: "Main flow: review titles, approve the ones to change, then submit. After submitting, return to chat and ask me to execute.",
+        startingReview: "Preparing a fresh review request...",
+        startReviewPrepared: "Prepared a fresh review request. Copy the prompt below to Codex so I can collect current threads and generate a new review page.",
+        startReviewFailed: "Failed to prepare start-review request: {message}",
+        summary: "{approved} approved; {changed} changed; {invalid} invalid. Per-item regeneration uses local vLLM.",
+        summaryApply: "Apply status: {applied} applied, {skipped} skipped, {failed} failed.",
+        summaryHidden: "Applied, unchanged, unapproved, and old unavailable items are hidden automatically.",
+        noMatching: "No matching proposals.",
+        currentTitle: "Current title",
+        beforeTitle: "Before apply",
+        standardTitle: "Standard title",
+        approve: "Approve",
+        reject: "Reject",
+        validChange: "Valid change",
+        noChange: "No change",
+        invalid: "{reason}; invalid",
+        appliedBadge: "Applied",
+        skippedBadge: "Skipped",
+        unavailableBadge: "Old batch",
+        failedBadge: "Failed",
+        assistantPromptTitle: "Prompt for Codex",
+        editPrompt: "Edit prompt",
+        lockPrompt: "Lock prompt",
+        resetPrompt: "Reset default",
+        copyPrompt: "Copy",
+        copiedPrompt: "Copied",
+        copyPromptFailed: "Copy failed; select the text manually.",
+        promptReset: "Prompt reset to the current language template.",
+        advanced: "Advanced options, context, per-item regenerate",
+        length: "Length",
+        customSize: "Custom size",
+        style: "Style",
+        extra: "Extra",
+        optionStandard: "Standard",
+        optionShort: "Short",
+        optionLong: "Long",
+        optionCustom: "Custom",
+        styleDescriptive: "Descriptive",
+        styleTechnical: "Technical",
+        styleAction: "Action",
+        styleChinese: "Chinese first",
+        styleEnglish: "English first",
+        charsPlaceholder: "chars",
+        extraPlaceholder: "Extra instruction",
+        noContext: "No context snippet",
+        regenerate: "Regenerate this item",
+        generating: "Generating...",
+        regenerated: "Merged into standard title",
+        regenNotice: "Regenerated and merged; approve after review.",
+        regenFailed: "Local service unavailable: {message}",
+        editedNotice: "Title edited; approval state was not changed automatically.",
+        fileModeSubmit: "This is a file page. Use http://127.0.0.1:8765/ to submit.",
+        submitting: "Submitting approvals...",
+        submitSaved: "Saved approved.json, apply_plan.json, and desktop_apply_request.json: {apply} apply, {skip} skipped. Next step requires Codex Desktop tool execution.",
+        submitFailed: "Submit failed: {message}",
+        preparingDesktopApply: "Preparing Desktop apply request...",
+        desktopApplyPrepared: "Prepared {count} Desktop apply items by host: {hosts}. A Codex agent must call set_thread_title to refresh the current sidebar immediately.",
+        desktopApplyPrepareFailed: "Desktop apply preparation failed: {message}",
+        checkingDesktopStatus: "Checking Desktop apply status...",
+        desktopStatusNone: "No Desktop apply request yet.",
+        desktopStatusPending: "Desktop apply request is pending: {count} items. Return to the Codex chat and ask me to execute it.",
+        desktopStatusCompleted: "Desktop apply completed: {applied} applied, {failed} failed, {skipped} skipped.",
+        desktopStatusFailed: "Desktop status check failed: {message}",
+        autoHideAppliedNotice: "Automatically hid {count} applied items; showing skipped or failed items.",
+        requestingSubagent: "Creating Codex subagent request...",
+        subagentNoSelection: "Check the items you want a subagent to regenerate first.",
+        subagentRequested: "Created subagent request for {count} items: {requestId}. Model: {model}; fallback: {fallback}. Back in Codex chat, I can spawn the subagent and write the result.",
+        subagentRequestFailed: "Subagent request failed: {message}",
+        checkingSubagent: "Checking subagent result...",
+        subagentPending: "Subagent request is still waiting for Codex execution: {requestId}.",
+        subagentMerged: "Merged {count} subagent titles. Review again before applying.",
+        subagentStatusNone: "No subagent request yet.",
+        subagentStatusFailed: "Subagent status check failed: {message}",
+        applyingRemoteAppServer: "Applying renames through remote Codex app-server...",
+        remoteAppServerApplied: "Remote app-server fallback applied {count} items; {failed} host failures; {skip} skipped. It may not broadcast to the current Desktop sidebar.",
+        remoteAppServerFailed: "Remote rename apply failed: {message}",
+        applyingRemoteState: "Backing up and refreshing remote state...",
+        remoteStateApplied: "Refreshed {count} remote state titles; {failed} host failures; {skip} skipped.",
+        remoteStateFailed: "Remote state refresh failed: {message}",
+        applyingRemote: "Applying remote index...",
+        remoteApplied: "Applied {count} remote index records; {failed} host failures; {skip} skipped.",
+        remoteApplyFailed: "Remote index apply failed: {message}",
+        approveAllNotice: "Approved {count} valid changed titles.",
+        rejectAllNotice: "Cleared all approvals."
+      }
+    };
+    let currentLang = localStorage.getItem("sessionRenamer.lang") || "zh";
+    let currentTheme = localStorage.getItem("sessionRenamer.theme") || "dark";
+    let notice = { key: "noticeDefault", vars: {} };
+
+    function t(key, vars = {}) {
+      let text = (i18n[currentLang] && i18n[currentLang][key]) || i18n.en[key] || key;
+      Object.entries(vars).forEach(([name, value]) => {
+        text = text.replaceAll(`{${name}}`, String(value));
+      });
+      return text;
+    }
+
+    function setNotice(key, vars = {}) {
+      notice = { key, vars };
+    }
+
+    function noticeText() {
+      return t(notice.key, notice.vars);
+    }
+
+    function codexModelValue(selectId, customId, fallback) {
+      const select = document.getElementById(selectId);
+      const custom = document.getElementById(customId);
+      if (select.value === "__custom__") return custom.value.trim() || fallback;
+      return select.value || fallback;
+    }
+
+    function setCodexModelValue(selectId, customId, value, fallback) {
+      const select = document.getElementById(selectId);
+      const custom = document.getElementById(customId);
+      const text = String(value || fallback).trim();
+      if (codexModelChoices.includes(text)) {
+        select.value = text;
+        custom.value = "";
+      } else {
+        select.value = "__custom__";
+        custom.value = text;
+      }
+    }
+
+    function refreshCustomModelFields() {
+      const customModel = document.getElementById("codexModel").value === "__custom__";
+      const customFallback = document.getElementById("codexFallbackModel").value === "__custom__";
+      document.getElementById("codexModelCustomWrap").classList.toggle("is-hidden", !customModel);
+      document.getElementById("codexFallbackCustomWrap").classList.toggle("is-hidden", !customFallback);
+    }
+
+    function setFieldDisabled(id, disabled) {
+      const field = document.getElementById(id).closest(".model-field");
+      document.getElementById(id).disabled = disabled;
+      if (field) field.classList.toggle("is-disabled", disabled);
+    }
+
+    function applyModelBackendState() {
+      const backend = document.getElementById("modelBackend").value || "openai";
+      const openaiDisabled = backend !== "openai";
+      const codexDisabled = backend !== "codex";
+      ["openaiBaseUrl", "openaiModel", "openaiApiKey"].forEach((id) => setFieldDisabled(id, openaiDisabled));
+      ["codexModel", "codexFallbackModel", "codexModelCustom", "codexFallbackCustom"].forEach((id) => setFieldDisabled(id, codexDisabled));
+      refreshCustomModelFields();
+      const customModelDisabled = codexDisabled || document.getElementById("codexModel").value !== "__custom__";
+      const customFallbackDisabled = codexDisabled || document.getElementById("codexFallbackModel").value !== "__custom__";
+      setFieldDisabled("codexModelCustom", customModelDisabled);
+      setFieldDisabled("codexFallbackCustom", customFallbackDisabled);
+      document.getElementById("requestSubagent").disabled = codexDisabled;
+    }
+
+    function modelConfigData() {
+      return {
+        backend: document.getElementById("modelBackend").value || "openai",
+        openai_base_url: document.getElementById("openaiBaseUrl").value.trim() || "http://127.0.0.1:8000/v1",
+        openai_model: document.getElementById("openaiModel").value.trim(),
+        openai_api_key: document.getElementById("openaiApiKey").value,
+        codex_model: codexModelValue("codexModel", "codexModelCustom", "gpt-5.3-codex-spark"),
+        codex_fallback_model: codexModelValue("codexFallbackModel", "codexFallbackCustom", "gpt-5.4-mini")
+      };
+    }
+
+    function applyModelConfigToFields() {
+      document.getElementById("modelBackend").value = modelConfig.backend === "codex" ? "codex" : "openai";
+      document.getElementById("openaiBaseUrl").value = modelConfig.openai_base_url;
+      document.getElementById("openaiModel").value = modelConfig.openai_model;
+      document.getElementById("openaiApiKey").value = modelConfig.openai_api_key;
+      setCodexModelValue("codexModel", "codexModelCustom", modelConfig.codex_model, "gpt-5.3-codex-spark");
+      setCodexModelValue("codexFallbackModel", "codexFallbackCustom", modelConfig.codex_fallback_model, "gpt-5.4-mini");
+      applyModelBackendState();
+    }
+
+    function saveModelConfigFromFields() {
+      const config = modelConfigData();
+      modelConfig.backend = config.backend;
+      modelConfig.openai_base_url = config.openai_base_url;
+      modelConfig.openai_model = config.openai_model;
+      modelConfig.openai_api_key = config.openai_api_key;
+      modelConfig.codex_model = config.codex_model;
+      modelConfig.codex_fallback_model = config.codex_fallback_model;
+      localStorage.setItem("sessionRenamer.modelBackend", config.backend);
+      localStorage.setItem("sessionRenamer.openaiBaseUrl", config.openai_base_url);
+      localStorage.setItem("sessionRenamer.openaiModel", config.openai_model);
+      localStorage.setItem("sessionRenamer.codexModel", config.codex_model);
+      localStorage.setItem("sessionRenamer.codexFallbackModel", config.codex_fallback_model);
+      applyModelBackendState();
+    }
+
+    function renderMeta() {
+      const meta = document.getElementById("meta");
+      meta.innerHTML = "";
+      [
+        [t("metaCreated"), payload.created_at || ""],
+        [t("metaBackend"), run.backend_used || run.backend_requested || "unknown"],
+        [t("metaCount"), String(proposals.length)],
+        [t("metaCache"), String(run.cache_hits || 0)],
+        [t("metaServer"), serverMode ? t("on") : t("off")],
+        [t("metaBackup"), payload.maintenance && payload.maintenance.backup_file ? t("yes") : t("none")]
+      ].forEach(([label, value]) => {
+        const span = document.createElement("span");
+        span.className = "pill";
+        span.textContent = `${label}: ${value}`;
+        meta.appendChild(span);
+      });
+    }
+
+    function applyPreferences() {
+      if (!["zh", "en"].includes(currentLang)) currentLang = "zh";
+      if (!["dark", "light"].includes(currentTheme)) currentTheme = "dark";
+      document.documentElement.dataset.theme = currentTheme;
+      document.documentElement.lang = currentLang === "zh" ? "zh-CN" : "en";
+      document.getElementById("pageTitle").textContent = t("title");
+      document.getElementById("themeToggle").textContent = currentTheme === "dark" ? t("switchToLight") : t("switchToDark");
+      document.getElementById("langToggle").textContent = currentLang === "zh" ? t("switchToEn") : t("switchToZh");
+      document.getElementById("startReview").textContent = t("startReview");
+      document.getElementById("approveAll").textContent = t("approveAll");
+      document.getElementById("rejectAll").textContent = t("rejectAll");
+      document.getElementById("download").textContent = t("download");
+      document.getElementById("saveFile").textContent = t("saveFile");
+      document.getElementById("submitApprovals").textContent = t("submit");
+      document.getElementById("prepareDesktopApply").textContent = t("prepareDesktopApply");
+      document.getElementById("checkDesktopStatus").textContent = t("checkDesktopStatus");
+      document.getElementById("requestSubagent").textContent = t("requestSubagent");
+      document.getElementById("checkSubagentStatus").textContent = t("checkSubagentStatus");
+      document.getElementById("applyRemoteAppServer").textContent = t("applyRemoteAppServer");
+      document.getElementById("applyRemoteState").textContent = t("applyRemoteState");
+      document.getElementById("applyRemoteIndex").textContent = t("applyRemoteIndex");
+      document.getElementById("advancedToolsSummary").textContent = t("advancedTools");
+      document.getElementById("exportToolsLabel").textContent = t("exportTools");
+      document.getElementById("aiToolsLabel").textContent = t("aiTools");
+      document.getElementById("modelToolsLabel").textContent = t("modelTools");
+      document.getElementById("modelBackendLabel").textContent = t("modelBackend");
+      document.getElementById("openaiBaseUrlLabel").textContent = t("openaiBaseUrl");
+      document.getElementById("openaiModelLabel").textContent = t("openaiModel");
+      document.getElementById("openaiApiKeyLabel").textContent = t("openaiApiKey");
+      document.getElementById("codexModelLabel").textContent = t("codexModel");
+      document.getElementById("codexFallbackModelLabel").textContent = t("codexFallbackModel");
+      document.getElementById("codexModelCustomLabel").textContent = t("customCodexModel");
+      document.getElementById("codexFallbackCustomLabel").textContent = t("customCodexFallback");
+      document.getElementById("openaiBaseUrl").placeholder = t("openaiBaseUrlPlaceholder");
+      document.getElementById("openaiModel").placeholder = t("openaiModelPlaceholder");
+      document.getElementById("openaiApiKey").placeholder = t("openaiApiKeyPlaceholder");
+      document.getElementById("codexModelCustom").placeholder = t("customCodexModelPlaceholder");
+      document.getElementById("codexFallbackCustom").placeholder = t("customCodexFallbackPlaceholder");
+      document.getElementById("fallbackToolsLabel").textContent = t("fallbackTools");
+      document.getElementById("assistantPromptTitle").textContent = t("assistantPromptTitle");
+      document.getElementById("editAssistantPrompt").textContent = assistantPromptEditable ? t("lockPrompt") : t("editPrompt");
+      document.getElementById("resetAssistantPrompt").textContent = t("resetPrompt");
+      document.getElementById("copyAssistantPrompt").textContent = t("copyPrompt");
+      document.getElementById("search").placeholder = t("searchPlaceholder");
+      const filter = document.getElementById("filter");
+      const labels = {
+        needsAction: "filterNeedsAction",
+        all: "filterAll",
+        applied: "filterApplied",
+        skippedApply: "filterSkippedApply",
+        unavailable: "filterUnavailable",
+        approved: "filterApproved",
+        rejected: "filterRejected",
+        invalid: "filterInvalid",
+        changed: "filterChanged"
+      };
+      [...filter.options].forEach((option) => { option.textContent = t(labels[option.value]); });
+      renderMeta();
+    }
+
+    function changed(item) {
+      return String(item.oldTitle || "").trim() !== String(item.newTitle || "").trim();
+    }
+
+    function applyState(item) {
+      const status = applyStatusByThread.get(item.threadId);
+      return status ? status.state : "pending";
+    }
+
+    function applyReason(item) {
+      const status = applyStatusByThread.get(item.threadId);
+      return status ? String(status.reason || "") : "";
+    }
+
+    function isUnavailableSkipped(item) {
+      const reason = applyReason(item);
+      return applyState(item) === "skipped" && /No AppServerManager registered/i.test(reason);
+    }
+
+    function needsAction(item) {
+      const state = applyState(item);
+      if (desktopApply.state === "completed") {
+        if (isUnavailableSkipped(item)) return false;
+        return state === "failed";
+      }
+      return Boolean(item.valid) && changed(item);
+    }
+
+    function visibleProposals() {
+      const term = document.getElementById("search").value.trim().toLowerCase();
+      const filter = document.getElementById("filter").value;
+      return proposals
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => {
+          const state = applyState(item);
+          if (filter === "needsAction" && !needsAction(item)) return false;
+          if (filter === "applied" && state !== "applied") return false;
+          if (filter === "skippedApply" && state !== "skipped") return false;
+          if (filter === "unavailable" && !isUnavailableSkipped(item)) return false;
+          if (filter === "approved" && !item.approved) return false;
+          if (filter === "rejected" && item.approved) return false;
+          if (filter === "invalid" && item.valid) return false;
+          if (filter === "changed" && !changed(item)) return false;
+          if (!term) return true;
+          return [item.host, item.oldTitle, item.newTitle, item.reason, item.threadId]
+            .some((value) => String(value || "").toLowerCase().includes(term));
+        });
+    }
+
+    function updateSummary() {
+      const approvedCount = proposals.filter((p) => p.approved).length;
+      const changedCount = proposals.filter(changed).length;
+      const invalidCount = proposals.filter((p) => !p.valid).length;
+      document.getElementById("notice").textContent = noticeText();
+      let summaryText = t("summary", {
+        approved: approvedCount,
+        changed: changedCount,
+        invalid: invalidCount
+      });
+      if (desktopApply.state === "completed") {
+        summaryText += " " + t("summaryApply", {
+          applied: desktopApply.applied,
+          skipped: desktopApply.skipped,
+          failed: desktopApply.failed
+        });
+        if (document.getElementById("filter").value === "needsAction") {
+          summaryText += " " + t("summaryHidden");
+        }
+      }
+      document.getElementById("summary").textContent = summaryText;
+    }
+
+    function renderAssistantPrompt() {
+      const panel = document.getElementById("assistantPromptPanel");
+      const textArea = document.getElementById("assistantPromptText");
+      const editButton = document.getElementById("editAssistantPrompt");
+      const resetButton = document.getElementById("resetAssistantPrompt");
+      if (!assistantPromptText) {
+        panel.hidden = true;
+        textArea.value = "";
+        textArea.readOnly = true;
+        editButton.disabled = true;
+        resetButton.disabled = true;
+        return;
+      }
+      panel.hidden = false;
+      textArea.value = assistantPromptText;
+      textArea.readOnly = !assistantPromptEditable;
+      editButton.disabled = false;
+      resetButton.disabled = !assistantPromptSeed;
+      editButton.textContent = assistantPromptEditable ? t("lockPrompt") : t("editPrompt");
+      resetButton.textContent = t("resetPrompt");
+    }
+
+    function buildAssistantPromptFromSeed(seed) {
+      if (!seed || !seed.kind) return "";
+      if (seed.kind === "startReview") return buildStartReviewPrompt(seed.options || {});
+      if (seed.kind === "desktopApply") return buildDesktopApplyPrompt(seed.options || {});
+      if (seed.kind === "desktopResult") return buildDesktopResultPrompt(seed.options || {});
+      return "";
+    }
+
+    function setAssistantPrompt(text, seed = null) {
+      assistantPromptText = String(text || "").trim();
+      assistantPromptSeed = seed;
+      assistantPromptEditable = false;
+      assistantPromptEdited = false;
+      renderAssistantPrompt();
+    }
+
+    function resetAssistantPromptFromSeed() {
+      const nextText = buildAssistantPromptFromSeed(assistantPromptSeed);
+      if (!nextText) return;
+      assistantPromptText = nextText;
+      assistantPromptEditable = false;
+      assistantPromptEdited = false;
+      setNotice("promptReset");
+      applyPreferences();
+      renderAssistantPrompt();
+      updateSummary();
+    }
+
+    function syncAssistantPromptLanguage() {
+      if (!assistantPromptSeed || assistantPromptEdited) return;
+      const nextText = buildAssistantPromptFromSeed(assistantPromptSeed);
+      if (!nextText) return;
+      assistantPromptText = nextText;
+      renderAssistantPrompt();
+    }
+
+    function buildStartReviewPrompt(options = {}) {
+      const requestPath = options.requestPath || options.request_path || "C:\\Users\\davidli\\.codex\\tmp\\session-renamer\\current\\start_review_request.json";
+      const backend = options.backend || options.backend_config?.backend || "openai";
+      const modelText = backend === "codex"
+        ? `${options.backend_config?.codex_model || "gpt-5.3-codex-spark"} / ${options.backend_config?.codex_fallback_model || "gpt-5.4-mini"}`
+        : `${options.backend_config?.openai_base_url || "http://127.0.0.1:8000/v1"} ${options.backend_config?.openai_model || "(auto model)"}`;
+      if (currentLang === "en") {
+        return [
+          "Please start a fresh Codex session rename review from the web UI request.",
+          `Read ${requestPath}.`,
+          "Collect the current Desktop-visible local threads with codex_app.list_threads, save them as local_threads.json, then run the skill workflow: maintenance, discover, propose, and render-review.",
+          `Selected backend: ${backend}; model settings: ${modelText}.`,
+          "Do not apply any rename yet. Only generate a fresh review page.",
+          "When the new review.html is ready, restart or refresh the local review server on http://127.0.0.1:8765/ and tell me to refresh the browser."
+        ].join("\n");
+      }
+      return [
+        "请从网页请求开始一轮新的 Codex session 重命名审核。",
+        `请读取 ${requestPath}。`,
+        "先用 codex_app.list_threads 拉取当前 Desktop 可见的本地会话，保存为 local_threads.json，然后执行这个 skill 的流程：maintenance、discover、propose、render-review。",
+        `已选择后端：${backend}；模型设置：${modelText}。`,
+        "这一步不要应用任何改名，只生成新的审核页。",
+        "新的 review.html 准备好后，请重启或刷新本地审核服务 http://127.0.0.1:8765/，然后告诉我刷新浏览器。"
+      ].join("\n");
+    }
+
+    function buildDesktopApplyPrompt(options = {}) {
+      const requestPath = options.requestPath || options.request_path || "C:\\Users\\davidli\\.codex\\tmp\\session-renamer\\current\\desktop_apply_request.json";
+      const resultPath = options.resultPath || options.result_path || "C:\\Users\\davidli\\.codex\\tmp\\session-renamer\\current\\desktop_apply_result.json";
+      const count = options.count ?? options.apply_count ?? options.desktop_apply_count ?? "";
+      const skipped = options.skip ?? options.skip_count ?? "";
+      const hosts = options.hosts || hostSummaryText(options.countsByHost || options.desktop_counts_by_host);
+      if (currentLang === "en") {
+        return [
+          "I reviewed and submitted the Codex session rename approvals in the web UI.",
+          `Please read ${requestPath} and apply the approved items.`,
+          "Do not regenerate titles; use the submitted newTitle values directly.",
+          "For each item, call codex_app.set_thread_title with threadId and newTitle so the current Desktop sidebar receives the live update.",
+          `When finished, write ${resultPath} with applied, failed, skipped, and created_at, then summarize the result.`,
+          "If a thread returns No AppServerManager registered, record it as skipped and continue with the rest.",
+          count !== "" ? `Requested apply items: ${count}; submit-time skipped items: ${skipped || 0}; hosts: ${hosts || "-"}.` : ""
+        ].filter(Boolean).join("\n")
+      }
+      return [
+        "我已经在网页里审核并提交了 Codex session 重命名请求。",
+        `请读取 ${requestPath}，按里面的 items 执行已批准的改名。`,
+        "不要重新生成标题，直接使用提交的 newTitle。",
+        "请逐条调用 codex_app.set_thread_title，参数是 threadId 和 newTitle，这样当前 Codex Desktop 侧栏会收到实时刷新。",
+        `完成后请写回 ${resultPath}，包含 applied、failed、skipped、created_at，并告诉我结果。`,
+        "如果某条返回 No AppServerManager registered，请记录为 skipped，继续处理其它项。",
+        count !== "" ? `本次请求可应用 ${count} 条；提交时跳过 ${skipped || 0} 条；host 汇总：${hosts || "-"}。` : ""
+      ].filter(Boolean).join("\n");
+    }
+
+    function buildDesktopResultPrompt(data) {
+      const resultPath = data.result_path || "C:\\Users\\davidli\\.codex\\tmp\\session-renamer\\current\\desktop_apply_result.json";
+      const applied = data.applied_count || 0;
+      const failed = data.failed_count || 0;
+      const skipped = data.skipped_count || 0;
+      if (currentLang === "en") {
+        return [
+          "Please inspect the Codex session rename result from the web UI.",
+          `Read ${resultPath}.`,
+          `Current result: ${applied} applied, ${skipped} skipped, ${failed} failed.`,
+          "If there are skipped items, explain why they were skipped and suggest the safest next action."
+        ].join("\n");
+      }
+      return [
+        "请检查网页里的 Codex session 重命名执行结果。",
+        `请读取 ${resultPath}。`,
+        `当前结果：已应用 ${applied} 条，跳过 ${skipped} 条，失败 ${failed} 条。`,
+        "如果还有 skipped，请说明为什么跳过，以及下一步最安全的处理方式。"
+      ].join("\n");
+    }
+
+    function contextText(item) {
+      const context = item.context || {};
+      const lines = [];
+      if (context.cwd_basename || context.cwd) lines.push(`cwd: ${context.cwd_basename || context.cwd}`);
+      if (context.preview) lines.push(`preview: ${context.preview}`);
+      if (context.context) lines.push(`context: ${context.context}`);
+      return lines.join("\n\n") || t("noContext");
+    }
+
+    function makeField(labelText, control) {
+      const wrap = document.createElement("label");
+      const label = document.createElement("span");
+      label.className = "label";
+      label.textContent = labelText;
+      wrap.append(label, control);
+      return wrap;
+    }
+
+    function render() {
+      updateSummary();
+      const wrap = document.getElementById("tableWrap");
+      const items = visibleProposals();
+      if (!items.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = t("noMatching");
+        wrap.replaceChildren(empty);
+        return;
+      }
+      const list = document.createElement("div");
+      list.className = "list";
+      items.forEach(({ item, index }) => {
+        const card = document.createElement("article");
+        card.className = "card";
+
+        const main = document.createElement("div");
+        main.className = "card-main";
+
+        const useCell = document.createElement("div");
+        useCell.className = "use-cell";
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.checked = Boolean(item.approved);
+        check.addEventListener("change", () => {
+          item.approved = check.checked;
+          updateSummary();
+        });
+        useCell.appendChild(check);
+
+        const titleCell = document.createElement("div");
+        titleCell.className = "title-cell";
+        const host = document.createElement("div");
+        host.className = "host";
+        host.textContent = item.host || "local";
+        const oldLabel = document.createElement("span");
+        oldLabel.className = "label";
+        oldLabel.textContent = desktopApply.state === "completed" ? t("beforeTitle") : t("currentTitle");
+        const oldTitle = document.createElement("div");
+        oldTitle.className = "old-title";
+        oldTitle.textContent = item.oldTitle || "";
+        const threadId = document.createElement("div");
+        threadId.className = "thread-id";
+        threadId.textContent = item.threadId || "";
+        titleCell.append(host, oldLabel, oldTitle, threadId);
+
+        const proposalCell = document.createElement("div");
+        proposalCell.className = "proposal-cell";
+        const proposalLabel = document.createElement("span");
+        proposalLabel.className = "label";
+        proposalLabel.textContent = t("standardTitle");
+        const proposalRow = document.createElement("div");
+        proposalRow.className = "proposed-row";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = item.newTitle || "";
+        input.addEventListener("input", () => {
+          item.newTitle = input.value;
+          item.edited = true;
+          setNotice("editedNotice");
+          updateSummary();
+        });
+        const quickApprove = document.createElement("button");
+        quickApprove.className = "subtle";
+        quickApprove.textContent = item.approved ? t("reject") : t("approve");
+        quickApprove.addEventListener("click", () => {
+          item.approved = !item.approved;
+          render();
+        });
+        proposalRow.append(input, quickApprove);
+        const reason = document.createElement("div");
+        reason.className = "reason";
+        reason.textContent = item.reason || "";
+        proposalCell.append(proposalLabel, proposalRow, reason);
+
+        const stateCell = document.createElement("div");
+        stateCell.className = "state-cell";
+        const status = document.createElement("span");
+        status.className = `status ${item.valid ? "ok" : "bad"}`;
+        if (changed(item) && item.valid) status.className = "status ok";
+        if (!changed(item) && item.valid) status.className = "status warn";
+        status.textContent = item.valid
+          ? (changed(item) ? t("validChange") : t("noChange"))
+          : t("invalid", { reason: item.validation || "invalid" });
+        stateCell.appendChild(status);
+        const applyStatus = applyStatusByThread.get(item.threadId);
+        if (applyStatus) {
+          const applyBadge = document.createElement("span");
+          const unavailableSkipped = isUnavailableSkipped(item);
+          applyBadge.className = `status ${applyStatus.state === "applied" ? "ok" : applyStatus.state === "failed" ? "bad" : "warn"}`;
+          applyBadge.textContent = applyStatus.state === "applied"
+            ? t("appliedBadge")
+            : applyStatus.state === "failed"
+              ? t("failedBadge")
+              : unavailableSkipped
+                ? t("unavailableBadge")
+                : t("skippedBadge");
+          if (applyStatus.reason) applyBadge.title = applyStatus.reason;
+          stateCell.appendChild(applyBadge);
+        }
+
+        main.append(useCell, titleCell, proposalCell, stateCell);
+        card.appendChild(main);
+
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = t("advanced");
+        const advanced = document.createElement("div");
+        advanced.className = "advanced";
+
+        const length = document.createElement("select");
+        ["standard", "short", "long", "custom"].forEach((value) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = value === "standard" ? t("optionStandard") : value === "short" ? t("optionShort") : value === "long" ? t("optionLong") : t("optionCustom");
+          length.appendChild(option);
+        });
+        length.value = item.reviewOptions.length;
+        length.addEventListener("change", () => { item.reviewOptions.length = length.value; });
+
+        const customSize = document.createElement("input");
+        customSize.type = "number";
+        customSize.min = "4";
+        customSize.max = "48";
+        customSize.placeholder = t("charsPlaceholder");
+        customSize.value = item.reviewOptions.custom_size || "";
+        customSize.addEventListener("input", () => { item.reviewOptions.custom_size = customSize.value; });
+
+        const style = document.createElement("select");
+        [
+          ["descriptive", t("styleDescriptive")],
+          ["technical", t("styleTechnical")],
+          ["action", t("styleAction")],
+          ["chinese", t("styleChinese")],
+          ["english", t("styleEnglish")]
+        ].forEach(([value, text]) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = text;
+          style.appendChild(option);
+        });
+        style.value = item.reviewOptions.style;
+        style.addEventListener("change", () => { item.reviewOptions.style = style.value; });
+
+        const instruction = document.createElement("input");
+        instruction.type = "text";
+        instruction.placeholder = t("extraPlaceholder");
+        instruction.value = item.reviewOptions.instruction || "";
+        instruction.addEventListener("input", () => { item.reviewOptions.instruction = instruction.value; });
+
+        advanced.append(
+          makeField(t("length"), length),
+          makeField(t("customSize"), customSize),
+          makeField(t("style"), style),
+          makeField(t("extra"), instruction)
+        );
+
+        const contextBox = document.createElement("div");
+        contextBox.className = "context-box";
+        contextBox.textContent = contextText(item);
+        advanced.appendChild(contextBox);
+
+        const advancedActions = document.createElement("div");
+        advancedActions.className = "advanced-actions";
+        const regen = document.createElement("button");
+        regen.className = "primary";
+        regen.textContent = t("regenerate");
+        const openaiBackendActive = modelConfigData().backend === "openai";
+        regen.disabled = !openaiBackendActive;
+        regen.title = openaiBackendActive ? "" : t("openaiOnlyRegen");
+        const regenState = document.createElement("span");
+        regenState.className = "regen-state";
+        regenState.textContent = item.regenState || "";
+        regen.addEventListener("click", async () => {
+          if (modelConfigData().backend !== "openai") return;
+          regen.disabled = true;
+          regenState.textContent = t("generating");
+          try {
+            const response = await fetch("/api/regenerate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ session: item, options: item.reviewOptions, backendConfig: modelConfigData() })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
+            const proposal = data.proposal || {};
+            item.newTitle = proposal.newTitle || item.newTitle;
+            item.reason = proposal.reason || item.reason;
+            item.valid = Boolean(proposal.valid);
+            item.validation = proposal.validation || "";
+            item.backend = proposal.backend || item.backend;
+            item.model = proposal.model || item.model;
+            item.edited = true;
+            item.regenState = t("regenerated");
+            setNotice("regenNotice");
+            render();
+          } catch (error) {
+            item.regenState = t("regenFailed", { message: error.message });
+            regenState.textContent = item.regenState;
+          } finally {
+            regen.disabled = modelConfigData().backend !== "openai";
+          }
+        });
+        advancedActions.append(regen, regenState);
+        advanced.appendChild(advancedActions);
+        details.append(summary, advanced);
+        card.appendChild(details);
+        list.appendChild(card);
+      });
+      wrap.replaceChildren(list);
+    }
+
+    function approvalData() {
+      return {
+        created_at: new Date().toISOString(),
+        source: payload.proposals_file || "",
+        approvals: proposals.map((item) => ({
+          threadId: item.threadId,
+          host: item.host || "local",
+          oldTitle: item.oldTitle || "",
+          newTitle: item.newTitle || "",
+          approved: Boolean(item.approved),
+          edited: Boolean(item.edited),
+          fingerprint: item.fingerprint || null,
+          reviewOptions: item.reviewOptions || null
+        }))
+      };
+    }
+
+    function downloadJson() {
+      const blob = new Blob([JSON.stringify(approvalData(), null, 2) + "\n"], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = payload.approved_file_name || "approved.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function saveJson() {
+      if (!window.showSaveFilePicker) {
+        downloadJson();
+        return;
+      }
+      const handle = await window.showSaveFilePicker({
+        suggestedName: payload.approved_file_name || "approved.json",
+        types: [{ description: "JSON", accept: { "application/json": [".json"] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(JSON.stringify(approvalData(), null, 2) + "\n");
+      await writable.close();
+    }
+
+    async function submitApprovals() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      const button = document.getElementById("submitApprovals");
+      button.disabled = true;
+      setNotice("submitting");
+      updateSummary();
+      try {
+        const response = await fetch("/api/save-approvals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(approvalData())
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
+        const promptOptions = {
+          requestPath: data.desktop_apply_request_path,
+          count: data.desktop_apply_count || data.apply_count,
+          skip: data.skip_count,
+          countsByHost: data.desktop_counts_by_host
+        };
+        setAssistantPrompt(buildDesktopApplyPrompt(promptOptions), { kind: "desktopApply", options: promptOptions });
+        setNotice("submitSaved", { apply: data.apply_count, skip: data.skip_count });
+      } catch (error) {
+        setNotice("submitFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        render();
+      }
+      applyModelBackendState();
+    }
+
+    async function startReview() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      const button = document.getElementById("startReview");
+      button.disabled = true;
+      setNotice("startingReview");
+      updateSummary();
+      try {
+        const response = await fetch("/api/start-review-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ backendConfig: modelConfigData() })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
+        const promptOptions = {
+          requestPath: data.request_path,
+          backend_config: data.backend_config,
+          backend: data.backend_config?.backend || modelConfigData().backend
+        };
+        setAssistantPrompt(buildStartReviewPrompt(promptOptions), { kind: "startReview", options: promptOptions });
+        setNotice("startReviewPrepared");
+      } catch (error) {
+        setNotice("startReviewFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        render();
+      }
+    }
+
+    function hostSummaryText(counts) {
+      if (!counts || typeof counts !== "object") return "-";
+      return Object.entries(counts).map(([host, count]) => `${host}:${count}`).join(", ") || "-";
+    }
+
+    async function prepareDesktopApply() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      const button = document.getElementById("prepareDesktopApply");
+      button.disabled = true;
+      setNotice("preparingDesktopApply");
+      updateSummary();
+      try {
+        const response = await fetch("/api/prepare-desktop-apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(approvalData())
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
+        const promptOptions = {
+          requestPath: data.desktop_apply_request_path,
+          count: data.desktop_apply_count,
+          countsByHost: data.desktop_counts_by_host
+        };
+        setAssistantPrompt(buildDesktopApplyPrompt(promptOptions), { kind: "desktopApply", options: promptOptions });
+        setNotice("desktopApplyPrepared", {
+          count: data.desktop_apply_count || 0,
+          hosts: hostSummaryText(data.desktop_counts_by_host)
+        });
+      } catch (error) {
+        setNotice("desktopApplyPrepareFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        render();
+      }
+    }
+
+    function ingestApprovedData(data) {
+      const approvals = data && Array.isArray(data.approvals) ? data.approvals : [];
+      if (!approvals.length) return;
+      const byThread = new Map(approvals.map((item) => [item.threadId, item]));
+      proposals.forEach((item) => {
+        const saved = byThread.get(item.threadId);
+        if (!saved) return;
+        item.approved = Boolean(saved.approved);
+        item.edited = Boolean(saved.edited);
+        if (typeof saved.newTitle === "string" && saved.newTitle.trim()) item.newTitle = saved.newTitle;
+        if (saved.reviewOptions && typeof saved.reviewOptions === "object") {
+          item.reviewOptions = { ...item.reviewOptions, ...saved.reviewOptions };
+        }
+      });
+    }
+
+    async function refreshApprovedDataSilently() {
+      if (!serverMode) return;
+      try {
+        const response = await fetch("/approved.json", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        ingestApprovedData(data);
+      } catch (_) {
+        // approved.json is optional before the first submit.
+      }
+    }
+
+    function ingestDesktopApplyStatus(data) {
+      applyStatusByThread.clear();
+      if (!data || data.state !== "completed" || !data.result) {
+        desktopApply = {
+          state: data && data.state ? data.state : "unknown",
+          applied: 0,
+          failed: 0,
+          skipped: 0
+        };
+        return;
+      }
+      const result = data.result || {};
+      const applied = Array.isArray(result.applied) ? result.applied : [];
+      const failed = Array.isArray(result.failed) ? result.failed : [];
+      const skipped = Array.isArray(result.skipped) ? result.skipped : [];
+      applied.forEach((record) => {
+        if (record && record.threadId) applyStatusByThread.set(record.threadId, { state: "applied", reason: "" });
+      });
+      failed.forEach((record) => {
+        if (record && record.threadId) applyStatusByThread.set(record.threadId, { state: "failed", reason: record.reason || record.error || "" });
+      });
+      skipped.forEach((record) => {
+        if (record && record.threadId) applyStatusByThread.set(record.threadId, { state: "skipped", reason: record.reason || "" });
+      });
+      desktopApply = {
+        state: "completed",
+        applied: data.applied_count ?? applied.length,
+        failed: data.failed_count ?? failed.length,
+        skipped: data.skipped_count ?? skipped.length
+      };
+    }
+
+    async function checkDesktopStatus() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      const button = document.getElementById("checkDesktopStatus");
+      button.disabled = true;
+      setNotice("checkingDesktopStatus");
+      updateSummary();
+      try {
+        const response = await fetch("/api/desktop-apply-status");
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
+        ingestDesktopApplyStatus(data);
+        if (data.state === "none") {
+          setNotice("desktopStatusNone");
+        } else if (data.state === "completed") {
+          setAssistantPrompt(buildDesktopResultPrompt(data), { kind: "desktopResult", options: data });
+          const filter = document.getElementById("filter");
+          if (filter.value === "all" || filter.value === "") {
+            filter.value = "needsAction";
+          }
+          setNotice("desktopStatusCompleted", {
+            applied: data.applied_count || 0,
+            failed: data.failed_count || 0,
+            skipped: data.skipped_count || 0
+          });
+        } else {
+          const promptOptions = {
+            requestPath: data.request_path,
+            count: data.apply_count
+          };
+          setAssistantPrompt(buildDesktopApplyPrompt(promptOptions), { kind: "desktopApply", options: promptOptions });
+          setNotice("desktopStatusPending", { count: data.apply_count || 0 });
+        }
+      } catch (error) {
+        setNotice("desktopStatusFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        render();
+      }
+    }
+
+    async function refreshDesktopStatusSilently() {
+      if (!serverMode) return;
+      try {
+        const response = await fetch("/api/desktop-apply-status");
+        const data = await response.json();
+        if (!response.ok || !data.ok) return;
+        ingestDesktopApplyStatus(data);
+        if (data.state === "completed") {
+          if (!assistantPromptText) setAssistantPrompt(buildDesktopResultPrompt(data), { kind: "desktopResult", options: data });
+          const filter = document.getElementById("filter");
+          if (filter.value === "all" || filter.value === "") {
+            filter.value = "needsAction";
+          }
+          setNotice("desktopStatusCompleted", {
+            applied: data.applied_count || 0,
+            failed: data.failed_count || 0,
+            skipped: data.skipped_count || 0
+          });
+          if ((data.applied_count || 0) > 0 && filter.value === "needsAction") {
+            setNotice("autoHideAppliedNotice", { count: data.applied_count || 0 });
+          }
+        }
+        if (data.state && data.state !== "none" && data.state !== "completed" && !assistantPromptText) {
+          const promptOptions = {
+            requestPath: data.request_path,
+            count: data.apply_count
+          };
+          setAssistantPrompt(buildDesktopApplyPrompt(promptOptions), { kind: "desktopApply", options: promptOptions });
+        }
+        render();
+      } catch (_) {
+        // Status is advisory; keep the review page usable if the local server is unavailable.
+      }
+    }
+
+    async function refreshReviewStateSilently() {
+      await refreshApprovedDataSilently();
+      await refreshDesktopStatusSilently();
+    }
+
+    function checkedSubagentItems() {
+      return proposals.filter((item) => item.approved).map((item) => ({
+        ...item,
+        context: item.context || {},
+        reviewOptions: item.reviewOptions || null
+      }));
+    }
+
+    function hasEmojiPrefixClient(title) {
+      const text = String(title || "").trim();
+      try {
+        return /^\p{Extended_Pictographic}\uFE0F?\s/u.test(text);
+      } catch (_) {
+        return text.length >= 3 && /\s/.test(text.slice(1));
+      }
+    }
+
+    function validateClientTitle(oldTitle, newTitle) {
+      const text = String(newTitle || "").trim();
+      if (!hasEmojiPrefixClient(text)) return "missing emoji prefix";
+      const core = text.replace(/^\S+\s+/, "").trim();
+      if (!core) return "empty title";
+      if (core.length > 64) return "title too long";
+      if (/https?:\/\/|[A-Za-z]:\\|\/home\/|\/Users\//.test(core)) return "contains path or URL";
+      if (core === String(oldTitle || "").trim()) return "unchanged";
+      return "";
+    }
+
+    function mergeSubagentRenames(result) {
+      const renames = result && Array.isArray(result.renames) ? result.renames : [];
+      let merged = 0;
+      renames.forEach((rename) => {
+        const threadId = String(rename.id || rename.threadId || "");
+        const nextTitle = String(rename.new_title || rename.newTitle || "").trim();
+        const item = proposals.find((candidate) => candidate.threadId === threadId);
+        if (!item || !nextTitle) return;
+        const validation = validateClientTitle(item.oldTitle, nextTitle);
+        item.newTitle = nextTitle;
+        item.reason = String(rename.reason || "Generated by Codex subagent.").slice(0, 240);
+        item.valid = validation === "" || validation === "unchanged";
+        item.validation = validation === "unchanged" ? "" : validation;
+        item.backend = "subagent";
+        item.edited = true;
+        item.approved = false;
+        merged += 1;
+      });
+      return merged;
+    }
+
+    async function requestSubagent() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      if (modelConfigData().backend !== "codex") {
+        setNotice("chooseCodexBackend");
+        render();
+        return;
+      }
+      const sessions = checkedSubagentItems();
+      if (!sessions.length) {
+        setNotice("subagentNoSelection");
+        render();
+        return;
+      }
+      const button = document.getElementById("requestSubagent");
+      button.disabled = true;
+      setNotice("requestingSubagent");
+      updateSummary();
+      try {
+        const response = await fetch("/api/request-subagent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessions, options: { source: "review-ui-checked-items" }, backendConfig: modelConfigData() })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
+        localStorage.setItem("sessionRenamer.subagentRequestId", data.request_id || "");
+        setNotice("subagentRequested", {
+          count: data.count || 0,
+          requestId: data.request_id || "",
+          model: data.preferred_model || modelConfigData().codex_model,
+          fallback: data.fallback_model || modelConfigData().codex_fallback_model
+        });
+      } catch (error) {
+        setNotice("subagentRequestFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        applyModelBackendState();
+        render();
+      }
+    }
+
+    async function checkSubagentStatus() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      const button = document.getElementById("checkSubagentStatus");
+      button.disabled = true;
+      setNotice("checkingSubagent");
+      updateSummary();
+      try {
+        const requestId = localStorage.getItem("sessionRenamer.subagentRequestId") || "";
+        const url = requestId ? `/api/subagent-status?request_id=${encodeURIComponent(requestId)}` : "/api/subagent-status";
+        const response = await fetch(url);
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || response.statusText);
+        if (data.state === "none") {
+          setNotice("subagentStatusNone");
+        } else if (data.state === "completed") {
+          const merged = mergeSubagentRenames(data.result || {});
+          setNotice("subagentMerged", { count: merged });
+        } else {
+          setNotice("subagentPending", { requestId: data.request_id || "" });
+        }
+      } catch (error) {
+        setNotice("subagentStatusFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        render();
+      }
+    }
+
+    async function applyRemoteIndex() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      const button = document.getElementById("applyRemoteIndex");
+      button.disabled = true;
+      setNotice("applyingRemote");
+      updateSummary();
+      try {
+        const response = await fetch("/api/apply-remote-index", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || JSON.stringify(data.failed || []));
+        setNotice("remoteApplied", {
+          count: data.applied_count || 0,
+          failed: (data.failed || []).length,
+          skip: data.skipped_count || 0
+        });
+      } catch (error) {
+        setNotice("remoteApplyFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        render();
+      }
+    }
+
+    async function applyRemoteAppServer() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      const button = document.getElementById("applyRemoteAppServer");
+      button.disabled = true;
+      setNotice("applyingRemoteAppServer");
+      updateSummary();
+      try {
+        const response = await fetch("/api/apply-remote-app-server", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || JSON.stringify(data.failed || []));
+        setNotice("remoteAppServerApplied", {
+          count: data.applied_count || 0,
+          failed: (data.failed || []).length,
+          skip: data.skipped_count || 0
+        });
+      } catch (error) {
+        setNotice("remoteAppServerFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        render();
+      }
+    }
+
+    async function applyRemoteState() {
+      if (!serverMode) {
+        setNotice("fileModeSubmit");
+        render();
+        return;
+      }
+      const button = document.getElementById("applyRemoteState");
+      button.disabled = true;
+      setNotice("applyingRemoteState");
+      updateSummary();
+      try {
+        const response = await fetch("/api/apply-remote-state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || JSON.stringify(data.failed || []));
+        setNotice("remoteStateApplied", {
+          count: data.applied_count || 0,
+          failed: (data.failed || []).length,
+          skip: data.skipped_count || 0
+        });
+      } catch (error) {
+        setNotice("remoteStateFailed", { message: error.message });
+      } finally {
+        button.disabled = false;
+        render();
+      }
+    }
+
+    document.getElementById("approveAll").addEventListener("click", () => {
+      const count = proposals.reduce((total, p) => {
+        const shouldApprove = Boolean(p.valid) && changed(p);
+        p.approved = shouldApprove;
+        return total + (shouldApprove ? 1 : 0);
+      }, 0);
+      setNotice("approveAllNotice", { count });
+      render();
+    });
+    document.getElementById("rejectAll").addEventListener("click", () => {
+      proposals.forEach((p) => { p.approved = false; });
+      setNotice("rejectAllNotice");
+      render();
+    });
+    document.getElementById("download").addEventListener("click", downloadJson);
+    document.getElementById("saveFile").addEventListener("click", saveJson);
+    document.getElementById("startReview").addEventListener("click", startReview);
+    document.getElementById("editAssistantPrompt").addEventListener("click", () => {
+      assistantPromptEditable = !assistantPromptEditable;
+      applyPreferences();
+      renderAssistantPrompt();
+      if (assistantPromptEditable) document.getElementById("assistantPromptText").focus();
+    });
+    document.getElementById("resetAssistantPrompt").addEventListener("click", resetAssistantPromptFromSeed);
+    document.getElementById("assistantPromptText").addEventListener("input", (event) => {
+      assistantPromptText = event.target.value;
+      assistantPromptEdited = true;
+    });
+    document.getElementById("copyAssistantPrompt").addEventListener("click", async () => {
+      const button = document.getElementById("copyAssistantPrompt");
+      const textArea = document.getElementById("assistantPromptText");
+      assistantPromptText = textArea.value;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(textArea.value);
+        } else {
+          textArea.focus();
+          textArea.select();
+          document.execCommand("copy");
+        }
+        button.textContent = t("copiedPrompt");
+        setTimeout(() => { button.textContent = t("copyPrompt"); }, 1200);
+      } catch (_) {
+        setNotice("copyPromptFailed");
+        render();
+      }
+    });
+    ["modelBackend", "openaiBaseUrl", "openaiModel", "openaiApiKey", "codexModel", "codexModelCustom", "codexFallbackModel", "codexFallbackCustom"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", saveModelConfigFromFields);
+      document.getElementById(id).addEventListener("input", saveModelConfigFromFields);
+    });
+    document.getElementById("modelBackend").addEventListener("change", () => {
+      setNotice(modelConfigData().backend === "codex" ? "codexBackendHint" : "openaiBackendHint");
+      render();
+    });
+    document.getElementById("codexModel").addEventListener("change", render);
+    document.getElementById("codexFallbackModel").addEventListener("change", render);
+    document.getElementById("submitApprovals").addEventListener("click", submitApprovals);
+    document.getElementById("prepareDesktopApply").addEventListener("click", prepareDesktopApply);
+    document.getElementById("checkDesktopStatus").addEventListener("click", checkDesktopStatus);
+    document.getElementById("requestSubagent").addEventListener("click", requestSubagent);
+    document.getElementById("checkSubagentStatus").addEventListener("click", checkSubagentStatus);
+    document.getElementById("applyRemoteAppServer").addEventListener("click", applyRemoteAppServer);
+    document.getElementById("applyRemoteState").addEventListener("click", applyRemoteState);
+    document.getElementById("applyRemoteIndex").addEventListener("click", applyRemoteIndex);
+    document.getElementById("search").addEventListener("input", render);
+    document.getElementById("filter").addEventListener("change", render);
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      currentTheme = currentTheme === "dark" ? "light" : "dark";
+      localStorage.setItem("sessionRenamer.theme", currentTheme);
+      applyPreferences();
+      render();
+    });
+    document.getElementById("langToggle").addEventListener("click", () => {
+      currentLang = currentLang === "zh" ? "en" : "zh";
+      localStorage.setItem("sessionRenamer.lang", currentLang);
+      applyPreferences();
+      syncAssistantPromptLanguage();
+      render();
+    });
+    applyPreferences();
+    applyModelConfigToFields();
+    render();
+    refreshReviewStateSilently();
+  </script>
+</body>
+</html>
