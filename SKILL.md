@@ -14,6 +14,8 @@ Keep Codex on the two Desktop-only boundaries:
 
 Do not generate titles in Codex on the default path. The web/local service handles local LLM, heuristic proposals, review UI, and approval files.
 
+`propose` and `agent-review` skip sessions whose current title already starts with an emoji by default. Use `--include-existing-emoji` only when the user explicitly wants to re-review already named sessions.
+
 ## Short User Brief
 
 Use the user's language. In Chinese, keep it short:

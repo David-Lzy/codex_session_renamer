@@ -881,6 +881,21 @@ def heuristic_proposal(session: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def already_named_proposal(session: dict[str, Any]) -> dict[str, Any]:
+    old_title = str(session.get("title") or "")
+    return {
+        "threadId": session["threadId"],
+        "host": session.get("host") or "local",
+        "oldTitle": old_title,
+        "newTitle": old_title,
+        "reason": "Skipped model proposal because the title already starts with an emoji.",
+        "backend": "already_named",
+        "fingerprint": session.get("fingerprint") or session_fingerprint(session),
+        "context": proposal_context(session),
+        "status": "already_named",
+    }
+
+
 def request_json(url: str, payload: dict[str, Any], api_key: str, timeout: int) -> dict[str, Any]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
@@ -1415,13 +1430,19 @@ def run_propose(args: argparse.Namespace) -> int:
     proposals: list[dict[str, Any]] = []
     missing: list[dict[str, Any]] = []
     cache_hits = 0
+    skipped_existing_emoji = 0
     backend_key = args.backend
+    include_existing_emoji = bool(getattr(args, "include_existing_emoji", False))
     force_refresh = args.backend == "subagent" and (bool(args.subagent_json) or bool(getattr(args, "force_refresh", False)))
     for session in sessions:
         if not normalize_thread_id(session):
             continue
         session["threadId"] = normalize_thread_id(session)
         session.setdefault("fingerprint", session_fingerprint(session))
+        if not include_existing_emoji and has_emoji_prefix(str(session.get("title") or "")):
+            proposals.append(already_named_proposal(session))
+            skipped_existing_emoji += 1
+            continue
         key = cache_key(session, backend_key)
         cached = cache_data["entries"].get(key)
         if cached and not force_refresh:
@@ -1506,11 +1527,25 @@ def run_propose(args: argparse.Namespace) -> int:
         "backend_used": backend_used,
         "backend_error": backend_error,
         "cache_hits": cache_hits,
+        "skipped_existing_emoji": skipped_existing_emoji,
+        "model_input_count": len(missing),
         "count": len(proposals),
         "proposals": proposals,
     }
     write_json(output, result)
-    print(json.dumps({"output": str(output), "count": len(proposals), "backend_used": backend_used}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "output": str(output),
+                "count": len(proposals),
+                "backend_used": backend_used,
+                "skipped_existing_emoji": skipped_existing_emoji,
+                "model_input_count": len(missing),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -2002,6 +2037,7 @@ def run_agent_review(args: argparse.Namespace) -> int:
                 subagent_json=None,
                 force_refresh=True,
                 subagent_chunk_size=getattr(args, "subagent_chunk_size", DEFAULT_SUBAGENT_CHUNK_SIZE),
+                include_existing_emoji=getattr(args, "include_existing_emoji", False),
             )
         )
         proposals_run = read_json(current / "proposals.json", {})
@@ -2073,6 +2109,7 @@ def run_agent_review(args: argparse.Namespace) -> int:
             subagent_json=str(current_subagent_json) if current_subagent_json else None,
             force_refresh=False,
             subagent_chunk_size=getattr(args, "subagent_chunk_size", DEFAULT_SUBAGENT_CHUNK_SIZE),
+            include_existing_emoji=getattr(args, "include_existing_emoji", False),
         )
     )
     run_render_review(argparse.Namespace(codex_home=str(home), input=None, output=None))
@@ -3193,6 +3230,7 @@ def build_parser() -> argparse.ArgumentParser:
     propose.add_argument("--batch-size", type=int, default=1, help="Maximum sessions per vLLM request. Default is 1 for rich-context title generation.")
     propose.add_argument("--subagent-json", help="Validated JSON returned by a subagent.")
     propose.add_argument("--subagent-chunk-size", type=int, default=DEFAULT_SUBAGENT_CHUNK_SIZE, help="Sessions per Codex subagent prompt chunk.")
+    propose.add_argument("--include-existing-emoji", action="store_true", help="Also send titles that already start with an emoji to the proposal backend.")
     propose.set_defaults(func=run_propose)
 
     merge_subagent = sub.add_parser("merge-subagent", help="Merge chunked Codex subagent JSON results and report missing ids.")
@@ -3228,6 +3266,7 @@ def build_parser() -> argparse.ArgumentParser:
     agent_review.add_argument("--timeout", type=int, default=30)
     agent_review.add_argument("--batch-size", type=int, default=1)
     agent_review.add_argument("--subagent-chunk-size", type=int, default=DEFAULT_SUBAGENT_CHUNK_SIZE, help="Sessions per Codex subagent prompt chunk.")
+    agent_review.add_argument("--include-existing-emoji", action="store_true", help="Also send titles that already start with an emoji to the proposal backend.")
     agent_review.add_argument("--port", type=int, default=8765, help="Review server port used in generated commands.")
     agent_review.add_argument("--cache-days", type=int, default=DEFAULT_RETENTION_DAYS)
     agent_review.add_argument("--keep-backups", type=int, default=DEFAULT_BACKUP_KEEP)

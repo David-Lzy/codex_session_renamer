@@ -13,6 +13,7 @@ Review-first Codex session title organizer. It proposes clearer titles with emoj
   - Codex subagent handoff with a copyable next-step prompt in the review page.
   - Local heuristic fallback.
 - Local cache and run maintenance to avoid repeated model calls.
+- Existing titles that already start with an emoji are skipped before model calls by default.
 - Safe apply flow through `codex_app.set_thread_title`.
 - Optional remote fallback commands for app-server/state/index based title persistence.
 - Cross-platform Python scripts for Windows, macOS, and Linux.
@@ -121,6 +122,15 @@ The base URL is normalized automatically. Values such as `your-vllm-host:8000`
 or `http://your-vllm-host:8000` are expanded to
 `http://your-vllm-host:8000/v1`.
 
+By default, `propose` and `agent-review` do not send sessions whose current
+title already starts with an emoji to the proposal backend. They are kept as
+unchanged audit rows, which avoids paying tokens for titles that were already
+reviewed. To force a full re-review, add:
+
+```bash
+--include-existing-emoji
+```
+
 ## Codex Backend Handoff
 
 When the review page is served locally and `Codex subagent` is selected, clicking
@@ -150,6 +160,7 @@ python scripts/session_renamer.py maintenance
 python scripts/session_renamer.py bootstrap-review --local-json local_threads.json
 python scripts/session_renamer.py discover --local-json local_threads.json --enrich-transcripts
 python scripts/session_renamer.py propose --backend auto
+python scripts/session_renamer.py propose --backend auto --include-existing-emoji
 python scripts/session_renamer.py merge-subagent
 python scripts/session_renamer.py render-review
 python scripts/session_renamer.py serve-review --port 8765

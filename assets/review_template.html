@@ -633,6 +633,8 @@
         metaBackend: "后端",
         metaCount: "数量",
         metaCache: "缓存命中",
+        metaSkippedEmoji: "已跳过 emoji",
+        metaModelInputs: "送模型",
         metaServer: "交互服务",
         metaBackup: "备份",
         on: "开启",
@@ -790,6 +792,8 @@
         metaBackend: "Backend",
         metaCount: "Count",
         metaCache: "Cache hits",
+        metaSkippedEmoji: "Skipped emoji",
+        metaModelInputs: "Model inputs",
         metaServer: "Interactive server",
         metaBackup: "Backup",
         on: "on",
@@ -1076,6 +1080,8 @@
         [t("metaBackend"), run.backend_used || run.backend_requested || "unknown"],
         [t("metaCount"), String(proposals.length)],
         [t("metaCache"), String(run.cache_hits || 0)],
+        [t("metaSkippedEmoji"), String(run.skipped_existing_emoji || 0)],
+        [t("metaModelInputs"), String(run.model_input_count ?? proposals.length)],
         [t("metaServer"), serverMode ? t("on") : t("off")],
         [t("metaBackup"), payload.maintenance && payload.maintenance.backup_file ? t("yes") : t("none")]
       ].forEach(([label, value]) => {

@@ -582,6 +582,76 @@ class SessionRenamerTests(unittest.TestCase):
             self.assertEqual(proposals["cache_hits"], 0)
             self.assertEqual(proposals["proposals"][0]["newTitle"], "🎙️ Qwen ASR")
 
+    def test_propose_skips_existing_emoji_titles_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            p = sr.paths(home)
+            sr.ensure_dirs(p)
+            sessions = [
+                {"threadId": "named", "host": "local", "title": "🎙️ Qwen ASR"},
+                {"threadId": "plain", "host": "local", "title": "查看需求"},
+            ]
+            sr.write_json(p["current"] / "sessions.json", {"sessions": sessions})
+            args = type(
+                "Args",
+                (),
+                {
+                    "codex_home": str(home),
+                    "input": None,
+                    "output": None,
+                    "backend": "heuristic",
+                    "vllm_base_url": sr.DEFAULT_VLLM_BASE_URL,
+                    "vllm_api_key": sr.DEFAULT_VLLM_API_KEY,
+                    "model": None,
+                    "timeout": 30,
+                    "batch_size": 1,
+                    "subagent_json": None,
+                    "subagent_chunk_size": 25,
+                },
+            )
+            sr.run_propose(args)
+            result = sr.read_json(p["current"] / "proposals.json")
+            by_id = {item["threadId"]: item for item in result["proposals"]}
+            self.assertEqual(result["skipped_existing_emoji"], 1)
+            self.assertEqual(result["model_input_count"], 1)
+            self.assertEqual(by_id["named"]["status"], "already_named")
+            self.assertEqual(by_id["named"]["backend"], "already_named")
+            self.assertEqual(by_id["named"]["newTitle"], "🎙️ Qwen ASR")
+            self.assertEqual(by_id["plain"]["backend"], "heuristic")
+
+    def test_propose_include_existing_emoji_regenerates_titles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            p = sr.paths(home)
+            sr.ensure_dirs(p)
+            sessions = [{"threadId": "named", "host": "local", "title": "🎙️ Qwen ASR"}]
+            sr.write_json(p["current"] / "sessions.json", {"sessions": sessions})
+            args = type(
+                "Args",
+                (),
+                {
+                    "codex_home": str(home),
+                    "input": None,
+                    "output": None,
+                    "backend": "heuristic",
+                    "vllm_base_url": sr.DEFAULT_VLLM_BASE_URL,
+                    "vllm_api_key": sr.DEFAULT_VLLM_API_KEY,
+                    "model": None,
+                    "timeout": 30,
+                    "batch_size": 1,
+                    "subagent_json": None,
+                    "subagent_chunk_size": 25,
+                    "include_existing_emoji": True,
+                },
+            )
+            sr.run_propose(args)
+            result = sr.read_json(p["current"] / "proposals.json")
+            proposal = result["proposals"][0]
+            self.assertEqual(result["skipped_existing_emoji"], 0)
+            self.assertEqual(result["model_input_count"], 1)
+            self.assertEqual(proposal["backend"], "heuristic")
+            self.assertEqual(proposal["status"], "proposed")
+
     def test_package_excludes_git_and_zip_artifacts(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "skill.zip"
